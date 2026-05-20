@@ -11,6 +11,10 @@ class BusinessCard(models.Model):
     manual_note = models.TextField(blank=True, null=True)
     card_image = models.ImageField(upload_to='cards/', blank=True, null=True)
     scanned_at = models.DateTimeField(auto_now_add=True)
+    
+    # New Verification Fields
+    is_approved = models.BooleanField(default=False)
+    is_duplicate = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.first_name or 'Unknown'} {self.last_name or ''} - {self.company_name or 'No Company'}"

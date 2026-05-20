@@ -9,64 +9,94 @@
         body { background-color: #f8f9fa; }
         .metric-card { border-left: 4px solid #0d6efd; border-radius: 8px; }
         .company-card { border-left: 4px solid #198754; border-radius: 8px; }
+        .queue-border { border: 2px dashed #ffc107; background-color: #fffdf5; }
     </style>
 </head>
 <body>
     <div class="container py-5">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1 class="fw-bold text-dark">Business Cards Dashboard</h1>
-            <a href="/" class="btn btn-primary btn-lg">Scan New Card</a>
+            <div>
+                <a href="/chat/" class="btn btn-outline-primary me-2">Ask AI</a>
+                <a href="/" class="btn btn-primary">Scan New Card</a>
+            </div>
         </div>
 
         <div class="row g-4 mb-5">
             <div class="col-md-6">
                 <div class="card metric-card shadow-sm p-4 bg-white">
-                    <div class="text-muted text-uppercase small fw-bold">Total Cards Scanned</div>
+                    <div class="text-muted text-uppercase small fw-bold">Approved Cards Scanned</div>
                     <div class="display-5 fw-bold text-dark mt-2">{{ total_cards }}</div>
                 </div>
             </div>
             <div class="col-md-6">
                 <div class="card company-card shadow-sm p-4 bg-white">
-                    <div class="text-muted text-uppercase small fw-bold">Unique Companies</div>
+                    <div class="text-muted text-uppercase small fw-bold">Approved Unique Companies</div>
                     <div class="display-5 fw-bold text-dark mt-2">{{ unique_companies }}</div>
                 </div>
             </div>
         </div>
 
-        <h3 class="fw-bold text-secondary mb-4">Archived Records</h3>
+        {% if pending_cards %}
+        <h3 class="fw-bold text-warning mb-4">⏳ Verification Queue</h3>
+        <div class="row g-4 mb-5">
+            {% for card in pending_cards %}
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm queue-border">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title fw-bold m-0">{{ card.first_name }} {{ card.last_name }}</h5>
+                            {% if card.is_duplicate %}
+                            <span class="badge bg-danger">Duplicate Detected</span>
+                            {% endif %}
+                        </div>
+                        <p class="text-primary small mb-3">{{ card.company_name|default:"Independent" }}</p>
+                        <div class="mb-2 small text-muted"><strong>Email:</strong> {{ card.email|default:"N/A" }}</div>
+                        <div class="mb-3 small text-muted"><strong>Phone:</strong> {{ card.phone_number|default:"N/A" }}</div>
+                    </div>
+                    <div class="card-footer bg-transparent border-0 px-4 pb-4 pt-0">
+                        <div class="d-flex justify-content-end gap-2">
+                            <form method="POST" action="/approve/{{ card.id }}/" class="m-0">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-success px-3">Approve Record</button>
+                            </form>
+                            <a href="/edit/{{ card.id }}/" class="btn btn-sm btn-outline-primary">Edit</a>
+                            <form method="POST" action="/delete/{{ card.id }}/" class="m-0">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete permanently?');">Trash</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <h3 class="fw-bold text-success mb-4">✅ Approved Records</h3>
         <div class="row g-4">
-            {% for card in cards %}
+            {% for card in approved_cards %}
             <div class="col-md-4">
                 <div class="card h-100 shadow-sm border-0">
                     {% if card.card_image %}
-                    <img src="{{ card.card_image.url }}" class="card-img-top object-fit-cover" style="height: 200px;" alt="Card Image">
+                    <img src="{{ card.card_image.url }}" class="card-img-top object-fit-cover" style="height: 150px;" alt="Card Image">
                     {% endif %}
                     <div class="card-body p-4">
                         <h5 class="card-title fw-bold m-0">{{ card.first_name }} {{ card.last_name }}</h5>
                         <p class="text-primary small mb-3">{{ card.company_name|default:"Independent" }}</p>
-                        
                         <div class="mb-2 small text-muted"><strong>Email:</strong> {{ card.email|default:"N/A" }}</div>
                         <div class="mb-3 small text-muted"><strong>Phone:</strong> {{ card.phone_number|default:"N/A" }}</div>
-                        
-                        {% if card.manual_note %}
-                        <div class="p-3 bg-light rounded small text-secondary">
-                            <strong>Notes:</strong> {{ card.manual_note }}
-                        </div>
-                        {% endif %}
                     </div>
                     <div class="card-footer bg-transparent border-0 px-4 pb-4 pt-0">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span class="text-muted small">Scanned: {{ card.scanned_at|date:"M d, Y" }}</span>
-                            <a href="/edit/{{ card.id }}/" class="btn btn-sm btn-primary">Edit Data</a>
-                        </div>
                         <div class="d-flex justify-content-end gap-2 border-top pt-3">
+                            <a href="/edit/{{ card.id }}/" class="btn btn-sm btn-outline-primary">Edit</a>
                             <form method="POST" action="/copy/{{ card.id }}/" class="m-0">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-sm btn-outline-secondary px-3">Duplicate</button>
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">Copy</button>
                             </form>
                             <form method="POST" action="/delete/{{ card.id }}/" class="m-0">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-sm btn-outline-danger px-3" onclick="return confirm('Are you sure you want to delete this record forever?');">Delete</button>
+                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete permanently?');">Delete</button>
                             </form>
                         </div>
                     </div>
@@ -74,7 +104,7 @@
             </div>
             {% empty %}
             <div class="col-12 text-center py-5">
-                <p class="text-muted">No cards processed yet. Hit the scan button above to get started!</p>
+                <p class="text-muted">No approved cards yet.</p>
             </div>
             {% endfor %}
         </div>
