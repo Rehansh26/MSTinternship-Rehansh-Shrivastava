@@ -128,18 +128,26 @@ def chat_view(request):
     if request.method == 'POST':
         user_message = request.POST.get('message', '')
         user_cards = BusinessCard.objects.filter(user=request.user, is_approved=True)
-        context_data = "Here is the data from my saved business contacts:\n"
+        
+        context_data = "Saved Contacts:\n"
         for card in user_cards:
-            context_data += f"- Name: {card.first_name} {card.last_name}, Company: {card.company_name}, Role/Notes: {card.manual_note}\n"
+            context_data += f"- Name: {card.first_name} {card.last_name}, Company: {card.company_name}, Email: {card.email}, Phone: {card.phone_number}, Notes: {card.manual_note}\n"
             
-        prompt = f"You are a helpful business assistant. Use ONLY the following contact data to answer the user's question. If the answer is not in the data, say you don't know.\n\n{context_data}\n\nUser Question: {user_message}"
+        prompt = (
+            "You are a friendly, professional CRM assistant. Answer the user's question using ONLY the provided contact data. "
+            "Write in complete, natural sentences. If asked about a person, provide a helpful summary of their company, contact info, and notes. "
+            "If the information is not in the data, say you don't know.\n\n"
+            f"Data:\n{context_data}\n\n"
+            f"Question: {user_message}"
+        )
+        
         try:
             response = requests.post("http://localhost:11434/api/generate", json={"model": "llama3.2-vision", "prompt": prompt, "stream": False})
             return JsonResponse({'answer': response.json().get('response', 'Error.')})
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
+            
     return render(request, 'scanner/chat.html')
-
 @login_required
 def delete_card(request, card_id):
     if request.method == 'POST':
