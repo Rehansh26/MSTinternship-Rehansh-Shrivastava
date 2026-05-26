@@ -33,15 +33,17 @@ A complete, end-to-end CRM and networking platform that automates business card 
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/Rehansh26/MSTinternship-Rehansh-Shrivastava.git](https://github.com/Rehansh26/MSTinternship-Rehansh-Shrivastava.git)
-    cd CardScanner
+    git clone https://github.com/Rehansh26/MSTinternship-Rehansh-Shrivastava.git
+    cd MSTinternship-Rehansh-Shrivastava
     ```
 
 2.  **Create a Virtual Environment:**
     ```bash
     python -m venv venv
-    venv\Scripts\activate
     ```
+    Activate it:
+    * **Linux / macOS:** `source venv/bin/activate`
+    * **Windows:** `venv\Scripts\activate`
 
 3.  **Install Requirements:**
     ```bash
@@ -49,10 +51,14 @@ A complete, end-to-end CRM and networking platform that automates business card 
     ```
 
 4.  **Configure Environment:**
-    Create a `.env` file in the root directory and add your secret keys and database configuration:
+    Create a `.env` file in the root directory and add your secret key and database configuration:
     ```text
-    SECRET_KEY=your_secret_key
-    DATABASE_URL=postgresql://user:password@localhost:5432/crm_db
+    SECRET_KEY=your_secret_key_here
+    DB_NAME=crm_db
+    DB_USER=postgres
+    DB_PASSWORD=your_postgres_password
+    DB_HOST=localhost
+    DB_PORT=5432
     ```
 
 5.  **Run Migrations:**
@@ -75,9 +81,9 @@ A complete, end-to-end CRM and networking platform that automates business card 
 
 Ensure Ollama is running in the background. The CRM interacts with the local API at `http://localhost:11434`. You can test the connection by running:
 
-bash
+```bash
 curl http://localhost:11434/api/generate -d '{"model": "llama3.2", "prompt":"test"}'
-
+```
 
 ## 📂 Project Structure
 
@@ -89,7 +95,3 @@ curl http://localhost:11434/api/generate -d '{"model": "llama3.2", "prompt":"tes
 
 
 *Developed by Rehansh Shrivastava*
-
-```
-
-```
