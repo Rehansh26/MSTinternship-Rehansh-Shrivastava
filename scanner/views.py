@@ -7,6 +7,7 @@ from django.http import JsonResponse, HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login, logout
+from django.utils import timezone
 from .models import BusinessCard, Company, Event, Task, Domain, Opportunity
 from .graph_services import sync_card_to_graph, get_contacts_at_company_via_graph, get_contacts_by_domain_via_graph
 from .tasks import process_business_card, index_contact_for_rag
@@ -69,8 +70,21 @@ def dashboard(request):
 def approve_card(request, card_id):
     if request.method == 'POST':
         card = get_object_or_404(BusinessCard, id=card_id, user=request.user)
+
+        is_dup = False
+        if card.email:
+            is_dup = BusinessCard.objects.filter(
+                user=request.user, is_approved=True, email=card.email
+            ).exclude(id=card.id).exists()
+        if not is_dup and card.phone_number:
+            is_dup = BusinessCard.objects.filter(
+                user=request.user, is_approved=True, phone_number=card.phone_number
+            ).exclude(id=card.id).exists()
+
         card.is_approved = True
-        card.is_duplicate = False
+        card.is_duplicate = is_dup
+        card.reviewed_by = request.user
+        card.reviewed_at = timezone.now()
         card.save()
         
         sync_card_to_graph(card, user=request.user)
@@ -87,11 +101,25 @@ def edit_card(request, card_id):
     if request.method == 'POST':
         card.first_name = request.POST.get('first_name', '')
         card.last_name = request.POST.get('last_name', '')
+        card.designation = request.POST.get('designation', '')
+        card.contact_type = request.POST.get('contact_type', 'other')
         card.company_name = request.POST.get('company_name', '')
         card.email = request.POST.get('email', '')
         card.phone_number = request.POST.get('phone_number', '')
+        card.website = request.POST.get('website', '')
+        card.address = request.POST.get('address', '')
         card.manual_note = request.POST.get('manual_note', '')
         card.save()
+
+        new_company_name = request.POST.get('company_name', '').strip()
+        if new_company_name:
+            company_obj, _ = Company.objects.get_or_create(
+                user=request.user,
+                name=new_company_name,
+                defaults={"normalized_name": " ".join(new_company_name.lower().split())},
+            )
+            card.company_link = company_obj
+            card.save(update_fields=['company_link'])
         
         selected_domain_ids = request.POST.getlist('domains')
         card.domains.set(selected_domain_ids)
