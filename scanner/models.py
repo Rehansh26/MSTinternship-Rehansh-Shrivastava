@@ -1,23 +1,37 @@
 from django.db import models
 from django.contrib.auth.models import User
 
+
 class Company(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
+    normalized_name = models.CharField(max_length=255, db_index=True, blank=True, default="")
+    website = models.URLField(blank=True, null=True)
+    industry = models.CharField(max_length=100, blank=True, null=True)
+    company_type = models.CharField(max_length=100, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["normalized_name"]),
+            models.Index(fields=["company_type"]),
+        ]
 
     def __str__(self):
         return self.name
 
+
 class Event(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
+    event_type = models.CharField(max_length=100, blank=True, null=True)
     date = models.DateField(blank=True, null=True)
     location = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.name
+
 
 class Domain(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -26,28 +40,60 @@ class Domain(models.Model):
     def __str__(self):
         return self.name
 
+
 class BusinessCard(models.Model):
+    CONTACT_TYPES = [
+        ("customer", "Customer"),
+        ("vendor", "Vendor"),
+        ("investor", "Investor"),
+        ("partner", "Partner"),
+        ("research", "Research"),
+        ("mentor", "Mentor"),
+        ("government", "Government"),
+        ("other", "Other"),
+    ]
+
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100, blank=True, null=True)
+    designation = models.CharField(max_length=255, blank=True, null=True)
+    contact_type = models.CharField(max_length=50, choices=CONTACT_TYPES, default="other")
     company_name = models.CharField(max_length=255, blank=True, null=True)
-    company_link = models.ForeignKey(Company, on_delete=models.SET_NULL, null=True, blank=True, related_name='employees')
+    company_link = models.ForeignKey(
+        Company, on_delete=models.SET_NULL, null=True, blank=True, related_name="employees"
+    )
     email = models.EmailField(blank=True, null=True)
     phone_number = models.CharField(max_length=50, blank=True, null=True)
+    website = models.URLField(blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
     manual_note = models.TextField(blank=True, null=True)
-    card_image = models.ImageField(upload_to='cards/', blank=True, null=True)
+    card_image = models.ImageField(upload_to="cards/", blank=True, null=True)
+    raw_ai_response = models.TextField(blank=True, null=True)
+    extracted_json = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True, null=True)
     is_approved = models.BooleanField(default=False)
     is_duplicate = models.BooleanField(default=False)
-    met_at_event = models.ForeignKey(Event, on_delete=models.SET_NULL, null=True, blank=True, related_name='contacts')
+    reviewed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="reviewed_cards"
+    )
+    reviewed_at = models.DateTimeField(blank=True, null=True)
+    met_at_event = models.ForeignKey(
+        Event, on_delete=models.SET_NULL, null=True, blank=True, related_name="contacts"
+    )
     domains = models.ManyToManyField(Domain, blank=True)
     scanned_at = models.DateTimeField(auto_now_add=True)
 
+    @property
+    def full_name(self):
+        return f"{self.first_name or ''} {self.last_name or ''}".strip()
+
     def __str__(self):
-        return f"{self.first_name} {self.last_name}"
+        return self.full_name or self.email or "Unnamed Contact"
+
 
 class Task(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    contact = models.ForeignKey(BusinessCard, on_delete=models.CASCADE, related_name='tasks')
+    contact = models.ForeignKey(BusinessCard, on_delete=models.CASCADE, related_name="tasks")
     title = models.CharField(max_length=255)
     due_date = models.DateField(blank=True, null=True)
     is_completed = models.BooleanField(default=False)
@@ -55,6 +101,7 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
 
 class Opportunity(models.Model):
     STAGE_CHOICES = [
@@ -66,13 +113,14 @@ class Opportunity(models.Model):
     ]
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
-    contact = models.ForeignKey(BusinessCard, on_delete=models.CASCADE, related_name='opportunities')
+    contact = models.ForeignKey(BusinessCard, on_delete=models.CASCADE, related_name="opportunities")
     stage = models.CharField(max_length=50, choices=STAGE_CHOICES, default="lead")
     value = models.DecimalField(max_digits=15, decimal_places=2, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.title
+
 
 # --- KNOWLEDGE GRAPH MODELS ---
 
@@ -82,48 +130,122 @@ class KnowledgeEntity(models.Model):
         ("company", "Company"),
         ("event", "Event"),
         ("domain", "Domain"),
-        ("opportunity", "Opportunity"), # Added Opportunity
+        ("opportunity", "Opportunity"),
+        ("task", "Task"),
+        ("interaction", "Interaction"),
+        ("document", "Document"),
+        ("evidence", "Evidence"),
     ]
-    
+    STATUS_CHOICES = [
+        ("active", "Active"),
+        ("archived", "Archived"),
+        ("merged", "Merged"),
+    ]
+
     entity_type = models.CharField(max_length=50, choices=ENTITY_TYPES)
+    source_table = models.CharField(max_length=100, default="")
     source_id = models.PositiveIntegerField()
     display_name = models.CharField(max_length=255)
+    canonical_name = models.CharField(max_length=255, db_index=True, default="")
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default="active")
+    is_verified = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_entities"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         indexes = [
             models.Index(fields=["entity_type"]),
-            models.Index(fields=["source_id"]),
+            models.Index(fields=["source_table", "source_id"]),
+            models.Index(fields=["canonical_name"]),
         ]
         constraints = [
-            models.UniqueConstraint(fields=["entity_type", "source_id"], name="unique_knowledge_entity")
+            models.UniqueConstraint(
+                fields=["entity_type", "source_table", "source_id"],
+                name="unique_knowledge_entity"
+            )
         ]
 
     def __str__(self):
         return f"{self.entity_type}: {self.display_name}"
+
 
 class KnowledgeRelationship(models.Model):
     RELATIONSHIP_TYPES = [
         ("WORKS_AT", "Works At"),
         ("MET_AT", "Met At"),
         ("BELONGS_TO_DOMAIN", "Belongs To Domain"),
-        ("LINKED_TO_OPPORTUNITY", "Linked To Opportunity"), # Added Opportunity
+        ("DISCUSSED_USE_CASE", "Discussed Use Case"),
+        ("LINKED_TO_OPPORTUNITY", "Linked To Opportunity"),
+        ("HAS_INTERACTION", "Has Interaction"),
+        ("HAS_TASK", "Has Task"),
+        ("ASSIGNED_TO", "Assigned To"),
+        ("DOCUMENT_SHARED_WITH", "Document Shared With"),
+        ("SOURCE_EVIDENCE_OF", "Source Evidence Of"),
+        ("SIMILAR_TO", "Similar To"),
+        ("DUPLICATE_CANDIDATE_OF", "Duplicate Candidate Of"),
     ]
-    
-    source_entity = models.ForeignKey(KnowledgeEntity, related_name="outgoing_edges", on_delete=models.CASCADE)
+
+    source_entity = models.ForeignKey(
+        KnowledgeEntity, related_name="outgoing_edges", on_delete=models.CASCADE
+    )
     relationship_type = models.CharField(max_length=100, choices=RELATIONSHIP_TYPES)
-    target_entity = models.ForeignKey(KnowledgeEntity, related_name="incoming_edges", on_delete=models.CASCADE)
+    target_entity = models.ForeignKey(
+        KnowledgeEntity, related_name="incoming_edges", on_delete=models.CASCADE
+    )
+    weight = models.FloatField(default=1.0)
+    confidence = models.FloatField(default=1.0)
+    source_type = models.CharField(max_length=100, blank=True, null=True)
+    source_id = models.PositiveIntegerField(blank=True, null=True)
+    is_verified = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_relationships"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
+        indexes = [
+            models.Index(fields=["relationship_type"]),
+            models.Index(fields=["source_entity", "relationship_type"]),
+            models.Index(fields=["target_entity", "relationship_type"]),
+        ]
         constraints = [
-            models.UniqueConstraint(fields=["source_entity", "relationship_type", "target_entity"], name="unique_knowledge_relationship")
+            models.UniqueConstraint(
+                fields=["source_entity", "relationship_type", "target_entity"],
+                name="unique_knowledge_relationship"
+            )
         ]
 
+
+class RelationshipEvidence(models.Model):
+    relationship = models.ForeignKey(
+        KnowledgeRelationship, related_name="evidence_items", on_delete=models.CASCADE
+    )
+    evidence_type = models.CharField(max_length=100)
+    evidence_id = models.PositiveIntegerField(blank=True, null=True)
+    evidence_excerpt = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
 class KnowledgeDocument(models.Model):
-    ENTITY_TYPES = [("contact", "Contact"), ("company", "Company"), ("event", "Event")]
-    INDEX_STATUS = [("pending", "Pending"), ("indexed", "Indexed"), ("stale", "Stale"), ("failed", "Failed")]
-    
+    ENTITY_TYPES = [
+        ("contact", "Contact"),
+        ("company", "Company"),
+        ("event", "Event"),
+        ("opportunity", "Opportunity"),
+        ("task", "Task"),
+        ("interaction", "Interaction"),
+    ]
+    INDEX_STATUS = [
+        ("pending", "Pending"),
+        ("indexed", "Indexed"),
+        ("stale", "Stale"),
+        ("failed", "Failed"),
+    ]
+
     entity_type = models.CharField(max_length=50, choices=ENTITY_TYPES)
     entity_id = models.PositiveIntegerField()
     text_content = models.TextField()
@@ -134,12 +256,14 @@ class KnowledgeDocument(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     last_indexed_at = models.DateTimeField(blank=True, null=True)
 
+
 class DocumentChunk(models.Model):
     document = models.ForeignKey(KnowledgeDocument, on_delete=models.CASCADE, related_name="chunks")
     chunk_text = models.TextField()
     chunk_order = models.PositiveIntegerField(default=0)
     metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
 
 class EmbeddingIndexMap(models.Model):
     chunk = models.OneToOneField(DocumentChunk, on_delete=models.CASCADE, related_name="embedding_map")

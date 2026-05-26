@@ -10,6 +10,8 @@ from django.contrib.auth import login, logout
 from .models import BusinessCard, Company, Event, Task, Domain, Opportunity
 from .graph_services import sync_card_to_graph, get_contacts_at_company_via_graph, get_contacts_by_domain_via_graph
 from .tasks import process_business_card, index_contact_for_rag
+from .rag_services import embed_text
+from .vector_store import search_vectors
 
 def scan_card(request):
     if not request.user.is_authenticated:
@@ -71,9 +73,9 @@ def approve_card(request, card_id):
         card.is_duplicate = False
         card.save()
         
-        sync_card_to_graph(card)
+        sync_card_to_graph(card, user=request.user)
         index_contact_for_rag.delay(card.id)
-        
+
     return redirect('/dashboard/')
 
 @login_required
@@ -113,7 +115,7 @@ def edit_card(request, card_id):
                     value=opp_value if opp_value else None
                 )
         
-        sync_card_to_graph(card)
+        sync_card_to_graph(card, user=request.user)
         return redirect('/dashboard/')
         
     return render(request, 'scanner/edit.html', {
@@ -126,33 +128,68 @@ def edit_card(request, card_id):
 def chat_view(request):
     if request.method == 'POST':
         user_message = request.POST.get('message', '')
-        user_cards = BusinessCard.objects.filter(user=request.user, is_approved=True).prefetch_related('opportunities')
-        
-        context_data = "Saved Contacts & Deals:\n"
-        for card in user_cards:
-            context_data += f"- Name: {card.first_name} {card.last_name}, Company: {card.company_name}\n"
-            # Add opportunity/deal info to the prompt context
+
+        # --- SQL search: exact keyword match across approved contacts ---
+        sql_cards = BusinessCard.objects.filter(
+            user=request.user, is_approved=True
+        ).prefetch_related('opportunities', 'domains').select_related('company_link', 'met_at_event')
+
+        sql_lines = []
+        for card in sql_cards:
+            line = (
+                f"Contact: {card.full_name}, Designation: {card.designation or 'N/A'}, "
+                f"Company: {card.company_name or 'N/A'}, Email: {card.email or 'N/A'}, "
+                f"Phone: {card.phone_number or 'N/A'}, Notes: {card.manual_note or 'N/A'}"
+            )
             for opp in card.opportunities.all():
-                context_data += f"  * Deal: {opp.title}, Stage: {opp.get_stage_display()}, Value: {opp.value}\n"
-            context_data += f"  * Contact Info: Email: {card.email}, Phone: {card.phone_number}, Notes: {card.manual_note}\n"
-            
+                line += f" | Deal: {opp.title}, Stage: {opp.get_stage_display()}, Value: {opp.value}"
+            sql_lines.append(line)
+
+        # --- Vector search: semantic similarity over RAG chunks ---
+        vector_lines = []
+        try:
+            query_embedding = embed_text(user_message)
+            vector_results = search_vectors(
+                query_embedding=query_embedding,
+                top_k=5,
+                filters={"owner_id": request.user.id},
+            )
+            documents = vector_results.get("documents", [[]])[0]
+            metadatas = vector_results.get("metadatas", [[]])[0]
+            for doc, meta in zip(documents, metadatas):
+                vector_lines.append(f"RAG Record: {doc} | Metadata: {meta}")
+        except Exception:
+            pass
+
+        # --- Build combined context ---
+        context_parts = []
+        if sql_lines:
+            context_parts.append("CRM Contacts:\n" + "\n".join(sql_lines))
+        if vector_lines:
+            context_parts.append("Semantic Search Results:\n" + "\n".join(vector_lines))
+
+        context_data = "\n\n".join(context_parts) if context_parts else "No CRM records found."
+
         prompt = (
-            "You are a professional CRM assistant. Use ONLY the provided contact and deal data to answer the user. "
-            "If the user asks about a deal or contact, summarize their company, deal stage, and value.\n\n"
-            f"Data:\n{context_data}\n\n"
-            f"Question: {user_message}"
+            "You are a CRM assistant.\n"
+            "Answer the user's question using only the provided context.\n"
+            "If the answer is not available in the context, say: "
+            "\"I could not find this in the verified CRM records.\"\n\n"
+            f"Context:\n{context_data}\n\n"
+            f"Question:\n{user_message}\n\n"
+            "Answer:"
         )
-        
+
         try:
             response = requests.post(
-                "http://localhost:11434/api/generate", 
+                "http://localhost:11434/api/generate",
                 json={"model": "llama3.2", "prompt": prompt, "stream": False},
-                timeout=60
+                timeout=60,
             )
             return JsonResponse({'answer': response.json().get('response', 'Error.')})
-        except Exception as e:
-            return JsonResponse({'answer': f"Connection Error: {str(e)}"})
-            
+        except Exception as exc:
+            return JsonResponse({'answer': f"Connection Error: {str(exc)}"})
+
     return render(request, 'scanner/chat.html')
 
 @login_required
