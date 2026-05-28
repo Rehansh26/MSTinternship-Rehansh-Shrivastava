@@ -51,12 +51,19 @@ class BusinessCard(models.Model):
         ("government", "Government"),
         ("other", "Other"),
     ]
+    
+    RELATIONSHIP_STATUS = [
+        ("prospect", "Prospect"),
+        ("active", "Active"),
+        ("dormant", "Dormant"),
+    ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     first_name = models.CharField(max_length=100, blank=True, null=True)
     last_name = models.CharField(max_length=100, blank=True, null=True)
     designation = models.CharField(max_length=255, blank=True, null=True)
     contact_type = models.CharField(max_length=50, choices=CONTACT_TYPES, default="other")
+    relationship_status = models.CharField(max_length=20, choices=RELATIONSHIP_STATUS, default="prospect")
     company_name = models.CharField(max_length=255, blank=True, null=True)
     company_link = models.ForeignKey(
         Company, on_delete=models.SET_NULL, null=True, blank=True, related_name="employees"
@@ -88,6 +95,21 @@ class BusinessCard(models.Model):
 
     def __str__(self):
         return self.full_name or self.email or "Unnamed Contact"
+
+
+class Interaction(models.Model):
+    INTERACTION_TYPES = [
+        ("call", "Call"),
+        ("email", "Email"),
+        ("meeting", "Meeting"),
+    ]
+    card = models.ForeignKey(BusinessCard, on_delete=models.CASCADE, related_name='interactions')
+    type = models.CharField(max_length=20, choices=INTERACTION_TYPES)
+    summary = models.TextField()
+    date = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.get_type_display()} - {self.card.full_name}"
 
 
 class Task(models.Model):

@@ -43,9 +43,17 @@
                                         <option value="other" {% if card.contact_type == 'other' or not card.contact_type %}selected{% endif %}>Other</option>
                                     </select>
                                 </div>
-                                <div class="col-12">
+                                <div class="col-md-8">
                                     <label class="form-label text-muted small fw-bold">Designation / Title</label>
                                     <input type="text" class="form-control" name="designation" value="{{ card.designation|default:'' }}" placeholder="e.g., Senior Engineer">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small fw-bold">Relationship Status</label>
+                                    <select name="relationship_status" class="form-select">
+                                        <option value="prospect" {% if card.relationship_status == 'prospect' or not card.relationship_status %}selected{% endif %}>Prospect</option>
+                                        <option value="active" {% if card.relationship_status == 'active' %}selected{% endif %}>Active</option>
+                                        <option value="dormant" {% if card.relationship_status == 'dormant' %}selected{% endif %}>Dormant</option>
+                                    </select>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label text-muted small fw-bold">Email Address</label>
@@ -57,7 +65,8 @@
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label text-muted small fw-bold">Website</label>
-                                    <input type="url" class="form-control" name="website" value="{{ card.website|default:'' }}" placeholder="https://example.com">
+                                    <!-- Changed type="url" to type="text" below -->
+                                    <input type="text" class="form-control" name="website" value="{{ card.website|default:'' }}" placeholder="www.example.com">
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label text-muted small fw-bold">Address</label>

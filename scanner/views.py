@@ -131,6 +131,7 @@ def edit_card(request, card_id):
         card.last_name = request.POST.get('last_name', '')
         card.designation = request.POST.get('designation', '')
         card.contact_type = request.POST.get('contact_type', 'other')
+        card.relationship_status = request.POST.get('relationship_status', 'prospect')
         card.company_name = request.POST.get('company_name', '')
         card.email = request.POST.get('email', '')
         card.phone_number = request.POST.get('phone_number', '')
