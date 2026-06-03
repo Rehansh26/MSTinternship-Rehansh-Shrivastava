@@ -2,6 +2,8 @@ import json
 import base64
 import requests
 import csv
+import re
+from collections import Counter
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse, HttpResponse
 from django.contrib.auth.decorators import login_required
@@ -10,13 +12,25 @@ from django.contrib.auth import login, logout
 from django.utils import timezone
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.models import User
+from django.db.models import Count
+from django.db.models.functions import TruncDate
+import json
+from django.db.models import Count
+from django.db.models.functions import TruncDate
+from django.shortcuts import render, redirect
+from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.models import User
+from .models import Feedback, BillingProfile, Advertisement
 
-# Imported UserEmail and UserPhone here
-from .models import BusinessCard, Company, Event, Task, Domain, Opportunity, KnowledgeEntity, KnowledgeRelationship, UserEmail, UserPhone
+from .models import BusinessCard, Company, Event, Task, Domain, Opportunity, KnowledgeEntity, KnowledgeRelationship, UserEmail, UserPhone, Feedback, BillingProfile
 from .graph_services import sync_card_to_graph, get_contacts_at_company_via_graph, get_contacts_by_domain_via_graph
 from .tasks import process_business_card, index_contact_for_rag
 from .rag_services import embed_text
 from .vector_store import search_vectors
+from .models import Advertisement
 
 def scan_card(request):
     if not request.user.is_authenticated:
@@ -80,6 +94,16 @@ def dashboard(request):
     graph_nodes_json = json.dumps(nodes_list)
     graph_edges_json = json.dumps(edges_list)
 
+    notes = cards.values_list('manual_note', flat=True)
+    text = " ".join(filter(None, notes)).lower()
+    words = re.findall(r'\b[a-z]{4,}\b', text)
+    stop_words = {'that', 'this', 'with', 'from', 'have', 'were', 'they', 'will', 'your', 'about'}
+    filtered_words = [w for w in words if w not in stop_words]
+    bag_of_words = Counter(filtered_words).most_common(40)
+
+    max_count = bag_of_words[0][1] if bag_of_words else 1
+    bag_of_words_scaled = [(word, int((count / max_count) * 28) + 12) for word, count in bag_of_words]
+
     context = {
         'cards': cards,
         'companies': companies,
@@ -91,7 +115,8 @@ def dashboard(request):
         'domains': domains,
         'opportunities': opportunities,
         'graph_nodes_json': graph_nodes_json, 
-        'graph_edges_json': graph_edges_json  
+        'graph_edges_json': graph_edges_json,
+        'bag_of_words': bag_of_words_scaled
     }
     return render(request, 'scanner/view.html', context)
 
@@ -157,7 +182,6 @@ def edit_card(request, card_id):
         opp_title = request.POST.get('opp_title')
         opp_stage = request.POST.get('opp_stage', 'lead')
 
-        # Fixed the Opportunity creation bug here
         if opp_title: 
             if opportunity:
                 opportunity.title = opp_title
@@ -385,36 +409,7 @@ def delete_domain(request, domain_id):
         domain.delete()
     return redirect('/settings/')
 
-# views.py
-from django.shortcuts import redirect
-from django.contrib import messages
-
-def submit_feedback(request):
-    if request.method == "POST":
-        rating = request.POST.get('rating')
-        text = request.POST.get('feedback_text')
-        
-        # --- DO SOMETHING WITH THE DATA ---
-        # For now, let's just print it to your terminal:
-        print(f"🌟 NEW FEEDBACK RECEIVED 🌟")
-        print(f"Rating: {rating} out of 5 stars")
-        print(f"Message: {text}")
-        print(f"From User: {request.user.username}")
-        # ----------------------------------
-
-        # Show a success message on the screen and refresh the page
-        messages.success(request, 'Thank you for your feedback! It has been securely recorded.')
-        return redirect('/dashboard/') # Change this to your actual dashboard URL name if different
-    
-
-
-
-from django.shortcuts import render, redirect
-from django.contrib import messages
-from django.contrib.admin.views.decorators import staff_member_required
-from .models import Feedback
-from django.contrib.auth.models import User
-
+@login_required
 def submit_feedback(request):
     if request.method == "POST":
         rating = request.POST.get('rating', 0)
@@ -425,17 +420,107 @@ def submit_feedback(request):
             rating=rating,
             text=text
         )
+        
+        print(f"🌟 NEW FEEDBACK RECEIVED 🌟")
+        print(f"Rating: {rating} out of 5 stars")
+        print(f"Message: {text}")
+        print(f"From User: {request.user.username}")
+        
         messages.success(request, 'Thank you for your feedback! It has been securely recorded.')
         
-    return redirect('dashboard')
+    return redirect('/dashboard/')
 
 @staff_member_required
 def admin_dashboard(request):
     feedbacks = Feedback.objects.all().order_by('-created_at')
-    total_users = User.objects.count()
+    users = User.objects.all().order_by('-date_joined')
+    pending_ads = Advertisement.objects.filter(is_approved=False)
+    active_ads = Advertisement.objects.filter(is_approved=True).order_by('-last_event')
     
+    # Billing Profiles for the new tab
+    billing_profiles = BillingProfile.objects.select_related('user').all()
+    
+    total_users = users.count()
+    paid_count = billing_profiles.filter(has_paid=True).count()
+    unpaid_count = total_users - paid_count
+
+    # User Growth Chart Data
+    user_growth = User.objects.annotate(date=TruncDate('date_joined')).values('date').annotate(count=Count('id')).order_by('date')
+    chart_labels = json.dumps([entry['date'].strftime('%b %d') for entry in user_growth if entry['date']])
+    chart_data = json.dumps([entry['count'] for entry in user_growth if entry['date']])
+    
+    # Mock Payment Trends Data (Replace with real transaction data later if you add a PaymentTransaction model)
+    payment_labels = json.dumps(["Jan", "Feb", "Mar", "Apr", "May", "Jun"])
+    payment_data = json.dumps([12000, 19000, 15000, 22000, 18000, 25000])
+
     context = {
         'feedbacks': feedbacks,
+        'users': users,
         'total_users': total_users,
+        'paid_count': paid_count,
+        'unpaid_count': unpaid_count,
+        'pending_ads': pending_ads,
+        'active_ads': active_ads,
+        'billing_profiles': billing_profiles, # Passed to the new table
+        'chart_labels': chart_labels,
+        'chart_data': chart_data,
+        'payment_labels': payment_labels, # Passed to the new graph
+        'payment_data': payment_data,     # Passed to the new graph
     }
-    return render(request, 'admin_dashboard.html', context)
+    return render(request, 'scanner/admin_dashboard.html', context)
+
+@staff_member_required
+def close_account(request, user_id):
+    if request.method == 'POST':
+        user_to_delete = get_object_or_404(User, id=user_id)
+        
+        if user_to_delete == request.user:
+            messages.error(request, "You cannot delete your own admin account.")
+        elif user_to_delete.is_superuser:
+            messages.error(request, "Cannot delete a superuser account from this dashboard.")
+        else:
+            username = user_to_delete.username
+            user_to_delete.delete()
+            messages.success(request, f"Account '{username}' has been permanently closed.")
+            
+    return redirect('/custom-admin/')
+
+@staff_member_required
+def toggle_admin(request, user_id):
+    if request.method == 'POST':
+        target_user = get_object_or_404(User, id=user_id)
+        if target_user == request.user:
+            messages.error(request, "You cannot change your own admin status.")
+        elif target_user.is_superuser and not request.user.is_superuser:
+            messages.error(request, "You cannot modify a superuser.")
+        else:
+            target_user.is_staff = not target_user.is_staff
+            target_user.save()
+            status_text = "granted" if target_user.is_staff else "revoked"
+            messages.success(request, f"Admin privileges {status_text} for {target_user.username}.")
+    return redirect('/custom-admin/')
+
+
+@login_required # Changed from staff_member_required so regular users can submit
+def launch_ad(request):
+    if request.method == 'POST':
+        Advertisement.objects.create(
+            ad_content=request.POST.get('ad_content'),
+            ad_file=request.FILES.get('ad_file'),
+            placement=request.POST.get('configure_services'),
+            strategy=request.POST.get('manage_services'),
+            start_date=request.POST.get('start_date'),
+            end_date=request.POST.get('end_date'),
+            running_time=request.POST.get('running_time')
+        )
+        # Optional: Add a success message
+        # messages.success(request, "Ad submitted! Awaiting Backend Team approval.")
+    return redirect('/dashboard/') # Sends them back to their user dashboard
+
+@staff_member_required
+def approve_ad(request, ad_id):
+    ad = get_object_or_404(Advertisement, id=ad_id)
+    ad.is_approved = True
+    ad.save()
+    messages.success(request, f"Ad '{ad.ad_content}' is now live!")
+    return redirect('/custom-admin/')

@@ -1,5 +1,10 @@
+import datetime
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
+
+def default_billing_date():
+    return timezone.now().date() + datetime.timedelta(days=30)
 
 class Company(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -19,7 +24,6 @@ class Company(models.Model):
     def __str__(self):
         return self.name or "Unnamed Company"
 
-
 class Event(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=255, blank=True, null=True)
@@ -31,14 +35,12 @@ class Event(models.Model):
     def __str__(self):
         return self.name or "Unnamed Event"
 
-
 class Domain(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=100, blank=True, null=True)
 
     def __str__(self):
         return self.name or "Unnamed Domain"
-
 
 class BusinessCard(models.Model):
     CONTACT_TYPES = [
@@ -96,7 +98,6 @@ class BusinessCard(models.Model):
     def __str__(self):
         return self.full_name or self.email or "Unnamed Contact"
 
-
 class Interaction(models.Model):
     INTERACTION_TYPES = [
         ("call", "Call"),
@@ -111,7 +112,6 @@ class Interaction(models.Model):
     def __str__(self):
         return f"{self.get_type_display()} - {self.card.full_name}"
 
-
 class Task(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     contact = models.ForeignKey(BusinessCard, on_delete=models.CASCADE, related_name="tasks")
@@ -122,7 +122,6 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title or "Untitled Task"
-
 
 class Opportunity(models.Model):
     STAGE_CHOICES = [
@@ -140,7 +139,6 @@ class Opportunity(models.Model):
 
     def __str__(self):
         return self.title or "Untitled Opportunity"
-
 
 class KnowledgeEntity(models.Model):
     ENTITY_TYPES = [
@@ -193,7 +191,6 @@ class KnowledgeEntity(models.Model):
     def __str__(self):
         return f"{self.entity_type}: {self.display_name}"
 
-
 class KnowledgeRelationship(models.Model):
     RELATIONSHIP_TYPES = [
         ("WORKS_AT", "Works At"),
@@ -241,7 +238,6 @@ class KnowledgeRelationship(models.Model):
             )
         ]
 
-
 class RelationshipEvidence(models.Model):
     relationship = models.ForeignKey(
         KnowledgeRelationship, related_name="evidence_items", on_delete=models.CASCADE
@@ -250,7 +246,6 @@ class RelationshipEvidence(models.Model):
     evidence_id = models.PositiveIntegerField(blank=True, null=True)
     evidence_excerpt = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
 
 class KnowledgeDocument(models.Model):
     ENTITY_TYPES = [
@@ -278,7 +273,6 @@ class KnowledgeDocument(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     last_indexed_at = models.DateTimeField(blank=True, null=True)
 
-
 class DocumentChunk(models.Model):
     document = models.ForeignKey(KnowledgeDocument, on_delete=models.CASCADE, related_name="chunks")
     chunk_text = models.TextField()
@@ -286,14 +280,12 @@ class DocumentChunk(models.Model):
     metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-
 class EmbeddingIndexMap(models.Model):
     chunk = models.OneToOneField(DocumentChunk, on_delete=models.CASCADE, related_name="embedding_map")
     vector_id = models.CharField(max_length=255, db_index=True)
     embedding_model = models.CharField(max_length=255)
     index_backend = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
-
 
 class UserEmail(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='emails')
@@ -304,7 +296,6 @@ class UserEmail(models.Model):
     def __str__(self):
         return f"{self.email} ({self.user.username})"
 
-
 class UserPhone(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='phones')
     phone_number = models.CharField(max_length=20, unique=True)
@@ -313,13 +304,45 @@ class UserPhone(models.Model):
 
     def __str__(self):
         return f"{self.phone_number} ({self.user.username})"
-    
-
-from django.db import models
-from django.contrib.auth.models import User
 
 class Feedback(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     rating = models.IntegerField()
     text = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+class BillingProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='billing_profile')
+    plan_name = models.CharField(max_length=100, default='Smart CRM Standard')
+    next_billing_cycle = models.DateField(default=default_billing_date)
+    has_paid = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.plan_name}"
+
+class Advertisement(models.Model):
+    PLACEMENT_CHOICES = [
+        ('dashboard_top', 'Dashboard Top Banner'),
+        ('sidebar_right', 'Sidebar Advertisement'),
+        ('email_blast', 'Email Newsletter Spot'),
+        ('login_page', 'Login Page Feature'),
+    ]
+    
+    ad_content = models.CharField(max_length=255)
+    ad_file = models.FileField(upload_to='ads/')
+    placement = models.CharField(max_length=50, choices=PLACEMENT_CHOICES)
+    strategy = models.CharField(max_length=50)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    running_time = models.TimeField()
+    is_approved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # --- NEW TRACKING FIELDS ---
+    clicks = models.IntegerField(default=0)
+    impressions = models.IntegerField(default=0)
+    avg_duration = models.FloatField(default=0.0) # Stored in seconds
+    last_event = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.ad_content

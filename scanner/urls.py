@@ -22,4 +22,8 @@ urlpatterns = [
     path('settings/delete-domain/<int:domain_id>/', views.delete_domain, name='delete_domain'),
     path('submit-feedback/', views.submit_feedback, name='submit_feedback'),
     path('custom-admin/', views.admin_dashboard, name='admin_dashboard'),
+    path('custom-admin/close-account/<int:user_id>/', views.close_account, name='close_account'),
+    path('custom-admin/toggle-admin/<int:user_id>/', views.toggle_admin, name='toggle_admin'),
+    path('submit-ad/', views.launch_ad, name='launch_ad'),
+    path('custom-admin/ads/approve/<int:ad_id>/', views.approve_ad, name='approve_ad'),
 ]
