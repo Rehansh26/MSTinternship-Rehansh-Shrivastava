@@ -6,6 +6,8 @@ from io import BytesIO
 from PIL import Image
 from celery import shared_task
 from django.utils import timezone
+import psutil
+from .models import SystemTelemetry
 
 from .models import BusinessCard, Company, KnowledgeDocument, DocumentChunk, EmbeddingIndexMap
 from .rag_services import build_card_document, calculate_hash, chunk_text, embed_text

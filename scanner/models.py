@@ -421,3 +421,15 @@ class ActivityLog(models.Model):
  
     def __str__(self):
         return f"{self.user} - {self.action} @ {self.timestamp}"
+    
+
+class SystemTelemetry(models.Model):
+    timestamp = models.DateTimeField(auto_now_add=True)
+    cpu_usage = models.FloatField()
+    memory_usage = models.FloatField()
+
+    class Meta:
+        ordering = ['-timestamp'] # Always get the newest data first
+
+    def __str__(self):
+        return f"Telemetry at {self.timestamp}"

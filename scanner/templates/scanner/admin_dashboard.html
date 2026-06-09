@@ -54,7 +54,6 @@
 
         <div class="tab-content" id="adminTabsContent">
             
-            <!-- ============== SYSTEM OVERVIEW ============== -->
             <div class="tab-pane fade show active" id="overview">
                 <div class="row g-4 mb-4">
                     <div class="col-md-3"><div class="card card-stats shadow-sm p-4 bg-white h-100 border-0"><div class="text-muted text-uppercase small fw-bold">Total Customers</div><div class="display-6 fw-bold text-dark mt-2">{{ total_users|default:"0" }}</div></div></div>
@@ -77,11 +76,10 @@
                 </div>
             </div>
 
-            <!-- ============== CUSTOMER MANAGEMENT ============== -->
             <div class="tab-pane fade" id="customers">
                 <div class="d-flex justify-content-between mb-3">
                     <div class="d-flex gap-2">
-                        <select class="form-select w-auto shadow-sm border-primary">
+                        <select id="customerFilter" class="form-select w-auto shadow-sm border-primary">
                             <option>All Customers</option>
                             <option>Active</option>
                             <option>Inactive</option>
@@ -108,7 +106,7 @@
                             </thead>
                             <tbody>
                                 {% for u in users %}
-                                <tr>
+                                <tr class="customer-row">
                                     <td class="px-4 py-3 fw-bold text-dark">{{ u.username }}{% if u.is_staff and not u.is_superuser %}<span class="badge bg-primary ms-2">Backend Team</span>{% endif %}</td>
                                     <td class="py-3">{{ u.email|default:"N/A" }}</td>
                                     <td class="py-3">{{ u.date_joined|date:"M d, Y" }}</td>
@@ -142,7 +140,6 @@
                 </div>
             </div>
 
-            <!-- ============== APPLICATION MANAGEMENT ============== -->
             <div class="tab-pane fade" id="application">
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
@@ -241,7 +238,6 @@
                 </div>
             </div>
 
-            <!-- ============== AD MANAGEMENT ============== -->
             <div class="tab-pane fade" id="ads">
                 <h5 class="fw-bold text-dark mb-3">1. Ad Registration / Queue</h5>
                 <div class="row g-4 mb-4">
@@ -386,10 +382,8 @@
                 </div>
             </div>
 
-            <!-- ============== 💰 BILLING MANAGEMENT ============== -->
             <div class="tab-pane fade" id="billing">
                 
-                <!-- Top KPI Cards -->
                 <div class="row g-4 mb-4">
                     <div class="col-md-3">
                         <div class="card metric-card shadow-sm p-4 bg-white h-100 border-0" style="border-left: 4px solid #198754;">
@@ -421,7 +415,6 @@
                     </div>
                 </div>
 
-                <!-- Charts Row -->
                 <div class="row g-4 mb-4">
                     <div class="col-lg-8">
                         <div class="card shadow-sm border-0 p-4 h-100">
@@ -437,7 +430,6 @@
                     </div>
                 </div>
 
-                <!-- Subscription Plans -->
                 <div class="card shadow-sm border-0 mb-4">
                     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                         <h5 class="mb-0 fw-bold text-dark">📦 Subscription Plans</h5>
@@ -490,7 +482,6 @@
                     </div>
                 </div>
 
-                <!-- Recent Transactions -->
                 <div class="card shadow-sm border-0 mb-4">
                     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                         <h5 class="mb-0 fw-bold text-dark">🧾 Recent Transactions</h5>
@@ -557,7 +548,6 @@
                     </div>
                 </div>
 
-                <!-- Failed Payments + Invoices side by side -->
                 <div class="row g-4">
                     <div class="col-lg-6">
                         <div class="card shadow-sm border-0 p-4 h-100">
@@ -623,10 +613,8 @@
                 </div>
             </div>
 
-            <!-- ============== 🛠️ CONFIGURATION ============== -->
             <div class="tab-pane fade" id="configuration">
                 
-                <!-- Quick Action Tiles -->
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
                         <div class="card shadow-sm border-0 p-4 h-100 text-center cursor-pointer" data-bs-toggle="modal" data-bs-target="#generalSettingsModal">
@@ -672,7 +660,6 @@
                     </div>
                 </div>
 
-                <!-- Server Configuration Form -->
                 <div class="row g-4 mb-4">
                     <div class="col-lg-6">
                         <div class="card shadow-sm border-0 p-4 h-100">
@@ -717,7 +704,6 @@
                     </div>
                 </div>
 
-                <!-- Active Backend Team -->
                 <div class="card shadow-sm border-0 mb-4">
                     <div class="card-header bg-white py-3">
                         <h5 class="mb-0 fw-bold text-dark">👥 Backend Team Members</h5>
@@ -765,7 +751,6 @@
                     </div>
                 </div>
 
-                <!-- System Logs / Recent Activity -->
                 <div class="card shadow-sm border-0 mb-4">
                     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                         <h5 class="mb-0 fw-bold text-dark">📜 System Activity Log</h5>
@@ -801,9 +786,6 @@
         </div>
     </main>
 
-    <!-- ============== MODALS ============== -->
-    
-    <!-- Add Plan Modal -->
     <div class="modal fade" id="addPlanModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -836,7 +818,6 @@
         </div>
     </div>
 
-    <!-- General Settings Modal -->
     <div class="modal fade" id="generalSettingsModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -869,7 +850,6 @@
         </div>
     </div>
 
-    <!-- Payment Gateway Modal -->
     <div class="modal fade" id="paymentGatewayModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -909,7 +889,6 @@
         </div>
     </div>
 
-    <!-- Email/SMTP Modal -->
     <div class="modal fade" id="emailConfigModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -955,7 +934,6 @@
         </div>
     </div>
 
-    <!-- Security Modal -->
     <div class="modal fade" id="securityModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -992,7 +970,6 @@
         </div>
     </div>
 
-    <!-- API Keys Modal -->
     <div class="modal fade" id="apiKeysModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -1025,7 +1002,6 @@
         </div>
     </div>
 
-    <!-- Backup Modal -->
     <div class="modal fade" id="backupModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -1051,7 +1027,6 @@
         </div>
     </div>
 
-    <!-- Edit Limits Modal -->
     <div class="modal fade" id="editLimitsModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -1200,6 +1175,24 @@
         createTelemetryChart('latencyChart', tLabels, {{ latency_data|safe }});
         createTelemetryChart('usersChart', tLabels, {{ users_data|safe }});
         createTelemetryChart('djangoChart', tLabels, {{ django_data|safe }});
+
+        // ✅ Customer Filter Logic
+        const customerFilter = document.getElementById('customerFilter');
+        if (customerFilter) {
+            customerFilter.addEventListener('change', function() {
+                const val = this.options[this.selectedIndex].text.toLowerCase();
+                const rows = document.querySelectorAll('.customer-row');
+                
+                rows.forEach(row => {
+                    const text = row.innerText.toLowerCase();
+                    if (val === 'all customers' || text.includes(val)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
     </script>
 </body>
 </html>
