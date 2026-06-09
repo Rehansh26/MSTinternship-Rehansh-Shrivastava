@@ -4,16 +4,207 @@
     <meta charset="UTF-8">
     <title>Sign Up - AI Card Scanner</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <style>
+        html, body {
+            height: 100%;
+        }
+        body {
+            background-color: #f8f9fa !important;
+            margin: 0;
+        }
+        .full-screen-card {
+            width: 95vw;
+            max-width: 1200px;
+            min-height: 95vh;
+            border: none;
+            border-radius: 12px;
+        }
+    </style>
 </head>
-<body class="bg-light d-flex align-items-center justify-content-center" style="height: 100vh;">
-    <div class="card shadow p-5" style="width: 400px;">
-        <h2 class="fw-bold text-center mb-4 text-success">Create Account</h2>
-        <form method="POST">
-            {% csrf_token %}
-            {{ form.as_p }}
-            <button type="submit" class="btn btn-success w-100 mt-3">Sign Up & Scan</button>
-        </form>
-        <p class="text-center mt-4 text-muted small">Already have an account? <a href="/login/">Log In</a></p>
+<body class="d-flex align-items-center justify-content-center">
+    <div class="card shadow-lg full-screen-card p-5 my-3">
+        <div class="row h-100 align-items-center">
+            
+            <!-- Left Side: Branding / Marketing -->
+            <div class="col-lg-6 d-none d-lg-flex flex-column justify-content-center text-center px-5">
+                <h1 class="display-4 fw-bold text-primary mb-3">📇 AI Card Scanner</h1>
+                <p class="lead text-muted mb-4">
+                    Scan, organize, and unlock your business contacts with the power of AI.
+                </p>
+                <div class="mb-4">
+                    <span class="badge bg-primary-subtle text-primary fw-bold fs-6 px-3 py-2">
+                        ₹499 / month — Cancel anytime
+                    </span>
+                </div>
+                <ul class="list-unstyled text-muted text-start mx-auto" style="max-width: 400px;">
+                    <li class="mb-2">✅ Instant OCR extraction from any card photo</li>
+                    <li class="mb-2">✅ Smart graph-based relationship mapping</li>
+                    <li class="mb-2">✅ RAG-powered AI assistant for your CRM</li>
+                    <li class="mb-2">✅ Unlimited contacts & CSV export</li>
+                </ul>
+            </div>
+
+            <!-- Right Side: Signup Form -->
+            <div class="col-lg-6">
+                <div class="mx-auto" style="max-width: 480px;">
+                    <h2 class="fw-bold text-center mb-2 text-primary">Create Account</h2>
+                    <p class="text-center text-muted small mb-4 d-lg-none">
+                        <span class="badge bg-primary-subtle text-primary fw-bold">₹499 / month</span>
+                        — Start scanning business cards with AI
+                    </p>
+
+                    {% if form.errors %}
+                        <div class="alert alert-danger small">
+                            {% for field, errors in form.errors.items %}
+                                {% for error in errors %}
+                                    <div>{{ field }}: {{ error }}</div>
+                                {% endfor %}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <form method="POST" id="signupForm">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-dark">Username</label>
+                            <input type="text" name="username" class="form-control" required minlength="3" maxlength="150"
+                                   value="{{ form.username.value|default:'' }}" placeholder="Choose a username">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-dark">Email (optional)</label>
+                            <input type="email" name="email" class="form-control"
+                                   value="{{ form.email.value|default:'' }}" placeholder="you@example.com">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-dark">Password</label>
+                            <input type="password" name="password1" class="form-control" required minlength="8"
+                                   placeholder="At least 8 characters">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-dark">Confirm Password</label>
+                            <input type="password" name="password2" class="form-control" required
+                                   placeholder="Re-enter password">
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="agreeTerms" required>
+                            <label class="form-check-label small" for="agreeTerms">
+                                I agree to the <a href="#">Terms of Service</a> and authorize the ₹499 monthly charge.
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 mt-3 fw-bold py-2" id="signupBtn">
+                            💳 Sign Up & Pay ₹499
+                        </button>
+                    </form>
+
+                    <p class="text-center mt-4 text-muted small mb-0">
+                        Already have an account? <a href="/login/">Log In</a>
+                    </p>
+                </div>
+            </div>
+
+        </div>
     </div>
+
+    <script>
+        document.getElementById('signupForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const btn = document.getElementById('signupBtn');
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Creating account...';
+
+            const formData = new FormData(this);
+
+            try {
+                const signupResponse = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                const data = await signupResponse.json();
+
+                if (data.error) {
+                    alert('Signup failed: ' + data.error);
+                    btn.disabled = false;
+                    btn.innerHTML = '💳 Sign Up & Pay ₹499';
+                    return;
+                }
+
+                if (!data.success) {
+                    window.location.reload();
+                    return;
+                }
+
+                if (data.order_id) {
+                    openRazorpay(data);
+                } else {
+                    window.location.href = data.redirect || '/dashboard/';
+                }
+            } catch (err) {
+                alert('Something went wrong. Please try again.');
+                btn.disabled = false;
+                btn.innerHTML = '💳 Sign Up & Pay ₹499';
+            }
+        });
+
+        function openRazorpay(data) {
+            const options = {
+                key: data.key_id,
+                amount: data.amount_paise,
+                currency: 'INR',
+                name: 'AI Card Scanner',
+                description: 'Monthly Subscription - ₹499',
+                order_id: data.order_id,
+                handler: function (response) {
+                    fetch('/verify-payment/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: new URLSearchParams({
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature
+                        })
+                    })
+                    .then(r => r.json())
+                    .then(result => {
+                        if (result.status === 'Payment successful and verified!') {
+                            window.location.href = '/dashboard/';
+                        } else {
+                            alert('Payment verification failed. Please contact support.');
+                            window.location.href = '/dashboard/?payment=failed';
+                        }
+                    })
+                    .catch(() => {
+                        window.location.href = '/dashboard/';
+                    });
+                },
+                prefill: {
+                    name: data.username || '',
+                    email: data.email || ''
+                },
+                theme: { color: '#0d6efd' },
+                modal: {
+                    ondismiss: function () {
+                        alert('Payment cancelled. Your account was created but subscription is inactive. Please complete payment from your dashboard.');
+                        window.location.href = '/dashboard/?payment=cancelled';
+                    }
+                }
+            };
+
+            const rzp = new Razorpay(options);
+            rzp.open();
+        }
+    </script>
 </body>
 </html>

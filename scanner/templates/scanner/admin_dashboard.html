@@ -11,17 +11,16 @@
         .card-users { border-left: 4px solid #0d6efd; border-radius: 8px; }
         .nav-tabs .nav-link { color: #495057; }
         .nav-tabs .nav-link.active { color: #0d6efd; border-bottom: 3px solid #0d6efd; font-weight: bold; }
-
-        canvas {
-            max-height: 220px !important;
-            width: 100% !important;
-        }
+        .telemetry-chart-container { height: 120px; width: 100%; }
+        .cursor-pointer { cursor: pointer; }
+        .metric-card { transition: transform 0.2s; }
+        .metric-card:hover { transform: translateY(-3px); }
     </style>
 </head>
 <body>
     
     <nav class="bg-dark text-light py-3 shadow-sm sticky-top">
-        <div class="container d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="container-fluid px-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
             <h4 class="mb-0 fw-bold text-white text-nowrap">⚙️ Backend Team Portal</h4>
             <div class="text-nowrap">
                 <a href="/dashboard/" class="btn btn-outline-light btn-sm me-2">Exit Portal</a>
@@ -30,7 +29,7 @@
         </div>
     </nav>
 
-    <main class="container py-4 flex-grow-1">
+    <main class="container-fluid px-4 py-4 flex-grow-1">
         
         <ul class="nav nav-tabs mb-4 border-bottom-0" id="adminTabs" role="tablist">
             <li class="nav-item">
@@ -45,12 +44,19 @@
             <li class="nav-item">
                 <button class="nav-link px-4 py-3" data-bs-toggle="tab" data-bs-target="#ads">📢 Ad Management</button>
             </li>
+            <li class="nav-item">
+                <button class="nav-link px-4 py-3" data-bs-toggle="tab" data-bs-target="#billing">💰 Billing Management</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link px-4 py-3" data-bs-toggle="tab" data-bs-target="#configuration">🛠️ Configuration</button>
+            </li>
         </ul>
 
         <div class="tab-content" id="adminTabsContent">
             
+            <!-- ============== SYSTEM OVERVIEW ============== -->
             <div class="tab-pane fade show active" id="overview">
-                <div class="row g-4 mb-5">
+                <div class="row g-4 mb-4">
                     <div class="col-md-3"><div class="card card-stats shadow-sm p-4 bg-white h-100 border-0"><div class="text-muted text-uppercase small fw-bold">Total Customers</div><div class="display-6 fw-bold text-dark mt-2">{{ total_users|default:"0" }}</div></div></div>
                     <div class="col-md-3"><div class="card shadow-sm p-4 bg-white h-100 border-0" style="border-left: 4px solid #198754;"><div class="text-muted text-uppercase small fw-bold">Paid Accounts</div><div class="display-6 fw-bold text-success mt-2">{{ paid_count|default:"0" }}</div></div></div>
                     <div class="col-md-3"><div class="card shadow-sm p-4 bg-white h-100 border-0" style="border-left: 4px solid #dc3545;"><div class="text-muted text-uppercase small fw-bold">Unpaid Accounts</div><div class="display-6 fw-bold text-danger mt-2">{{ unpaid_count|default:"0" }}</div></div></div>
@@ -64,53 +70,26 @@
                         <a href="?timeframe=months" class="btn btn-sm {% if current_timeframe == 'months' %}btn-primary{% else %}btn-outline-primary{% endif %} fw-bold shadow-sm">Months</a>
                         <a href="?timeframe=years" class="btn btn-sm {% if current_timeframe == 'years' %}btn-primary{% else %}btn-outline-primary{% endif %} fw-bold shadow-sm">Years</a>
                     </div>
-                    <div class="col-lg-3 col-md-6">
-                        <div class="card p-3 shadow-sm border-0 h-100">
-                            <h6 class="fw-bold">Customer Growth Trends</h6>
-                            <canvas id="growthChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="col-lg-3 col-md-6">
-                        <div class="card p-3 shadow-sm border-0 h-100">
-                            <h6 class="fw-bold">Subscription Acquisition</h6>
-                            <canvas id="acquisitionChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="col-lg-3 col-md-6">
-                        <div class="card p-3 shadow-sm border-0 h-100">
-                            <h6 class="fw-bold">Active vs Inactive Utilization</h6>
-                            <canvas id="utilizationChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="col-lg-3 col-md-6">
-                        <div class="card p-3 shadow-sm border-0 h-100">
-                            <h6 class="fw-bold">Total Gross Revenue (Subscriptions)</h6>
-                            <canvas id="revenueChart"></canvas>
-                        </div>
-                    </div>
+                    <div class="col-lg-3 col-md-6"><div class="card p-3 shadow-sm border-0 h-100"><h6 class="fw-bold text-truncate" title="Customer Growth Trends">Customer Growth Trends</h6><canvas id="growthChart"></canvas></div></div>
+                    <div class="col-lg-3 col-md-6"><div class="card p-3 shadow-sm border-0 h-100"><h6 class="fw-bold text-truncate" title="Subscription Acquisition">Subscription Acquisition</h6><canvas id="acquisitionChart"></canvas></div></div>
+                    <div class="col-lg-3 col-md-6"><div class="card p-3 shadow-sm border-0 h-100"><h6 class="fw-bold text-truncate" title="Active vs Inactive Utilization">Active vs Inactive Utilization</h6><canvas id="utilizationChart"></canvas></div></div>
+                    <div class="col-lg-3 col-md-6"><div class="card p-3 shadow-sm border-0 h-100"><h6 class="fw-bold text-truncate" title="Total Gross Revenue (Subscriptions)">Total Gross Revenue</h6><canvas id="revenueChart"></canvas></div></div>
                 </div>
             </div>
 
+            <!-- ============== CUSTOMER MANAGEMENT ============== -->
             <div class="tab-pane fade" id="customers">
-                <div class="row g-4 mb-4">
-                    <div class="col-md-3"><div class="card card-stats shadow-sm p-4 bg-white h-100 border-0"><div class="text-muted text-uppercase small fw-bold">Total Customers</div><div class="display-6 fw-bold text-dark mt-2">{{ total_users|default:"0" }}</div></div></div>
-                    <div class="col-md-3"><div class="card shadow-sm p-4 bg-white h-100 border-0" style="border-left: 4px solid #198754;"><div class="text-muted text-uppercase small fw-bold">Paid Accounts</div><div class="display-6 fw-bold text-success mt-2">{{ paid_count|default:"0" }}</div></div></div>
-                    <div class="col-md-3"><div class="card shadow-sm p-4 bg-white h-100 border-0" style="border-left: 4px solid #dc3545;"><div class="text-muted text-uppercase small fw-bold">Unpaid Accounts</div><div class="display-6 fw-bold text-danger mt-2">{{ unpaid_count|default:"0" }}</div></div></div>
-                    <div class="col-md-3"><div class="card shadow-sm p-4 bg-white h-100 border-0" style="border-left: 4px solid #6f42c1;"><div class="text-muted text-uppercase small fw-bold">Customer Churn</div><div class="display-6 fw-bold text-secondary mt-2">{{ churn_rate|default:"0" }}</div></div></div>
-                </div>
-
                 <div class="d-flex justify-content-between mb-3">
                     <div class="d-flex gap-2">
-                        <select id="customerFilter" class="form-select w-auto shadow-sm border-primary">
-                            <option value="all">All Customers</option>
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                            <option value="subscribed">Subscribed</option>
-                            <option value="unpaid">Unpaid/Overdue</option>
+                        <select class="form-select w-auto shadow-sm border-primary">
+                            <option>All Customers</option>
+                            <option>Active</option>
+                            <option>Inactive</option>
+                            <option>Subscribed</option>
+                            <option>Unpaid/Overdue</option>
                         </select>
                     </div>
                 </div>
-                
                 <div class="card shadow-sm border-0 mb-5">
                     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                         <h5 class="mb-0 fw-bold text-dark">📋 Customer Management</h5>
@@ -120,76 +99,41 @@
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light text-muted small">
                                 <tr>
-                                    <th>Username</th>
-                                    <th>Email</th>
-                                    <th>Plan</th>
-                                    <th>Billing Date</th>
-                                    <th>Payment</th>
-                                    <th>Subscription</th>
-                                    <th>Actions</th>
+                                    <th class="px-4 py-3">Customer Username</th>
+                                    <th class="py-3">Email</th>
+                                    <th class="py-3">Joined Date</th>
+                                    <th class="py-3">Status</th>
+                                    <th class="px-4 py-3 text-end">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for u in users %}
-                                <tr class="customer-row" data-status="{% if u.billing_profile.is_active %}active{% else %}inactive{% endif %}" data-payment="{% if u.billing_profile.has_paid %}paid{% else %}unpaid{% endif %}">
-                                    <td class="px-4 py-3 fw-bold text-dark">
-                                        {{ u.username }}
-                                        {% if u.is_staff and not u.is_superuser %}
-                                            <span class="badge bg-primary ms-2">Backend Team</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ u.email|default:"N/A" }}</td>
-                                    <td>{{ u.billing_profile.plan_name }}</td>
-                                    <td>{{ u.billing_profile.next_billing_cycle }}</td>
-                                    <td>
-                                        {% if u.billing_profile.has_paid %}
-                                            <span class="badge bg-success">Paid</span>
-                                        {% else %}
-                                            <span class="badge bg-danger">Unpaid</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if u.billing_profile.is_active %}
-                                            <span class="badge bg-success">Active</span>
-                                        {% else %}
-                                            <span class="badge bg-warning text-dark">On Hold</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="px-4 py-3 text-end d-flex gap-1 justify-content-end">
+                                <tr>
+                                    <td class="px-4 py-3 fw-bold text-dark">{{ u.username }}{% if u.is_staff and not u.is_superuser %}<span class="badge bg-primary ms-2">Backend Team</span>{% endif %}</td>
+                                    <td class="py-3">{{ u.email|default:"N/A" }}</td>
+                                    <td class="py-3">{{ u.date_joined|date:"M d, Y" }}</td>
+                                    <td class="py-3"><span class="badge bg-success shadow-sm px-2 py-1">Active</span></td>
+                                    <td class="px-4 py-3 text-end">
                                         {% if u == request.user %}
                                             <span class="badge bg-secondary">Current User</span>
                                         {% elif u.is_superuser %}
                                             <span class="badge bg-dark">Superuser</span>
                                         {% else %}
-                                            <a href="/custom-admin/billing-history/{{ u.id }}/" class="btn btn-sm btn-info text-white fw-bold">Billing</a>
-
-                                            {% if u.billing_profile.is_active %}
-                                                <form method="POST" action="/custom-admin/hold-subscription/{{ u.id }}/" class="m-0">
-                                                    {% csrf_token %}
-                                                    <button class="btn btn-sm btn-warning text-dark fw-bold">Hold</button>
-                                                </form>
-                                            {% else %}
-                                                <form method="POST" action="/custom-admin/activate-subscription/{{ u.id }}/" class="m-0">
-                                                    {% csrf_token %}
-                                                    <button class="btn btn-sm btn-success fw-bold">Activate</button>
-                                                </form>
-                                            {% endif %}
-
-                                            <form method="POST" action="/custom-admin/toggle-admin/{{ u.id }}/" class="m-0">
+                                            <button class="btn btn-sm btn-outline-dark shadow-sm fw-bold">Remind to Pay</button>
+                                            <form method="POST" action="{% url 'toggle_admin' u.id %}" class="d-inline">
                                                 {% csrf_token %}
-                                                <button class="btn btn-sm btn-outline-warning text-dark fw-bold">Toggle Backend Team</button>
+                                                <button class="btn btn-sm btn-outline-warning fw-bold">Toggle Backend Team</button>
                                             </form>
-
-                                            <form method="POST" action="/custom-admin/close-account/{{ u.id }}/" class="m-0">
+                                            <form method="POST" action="{% url 'close_account' u.id %}" class="d-inline">
                                                 {% csrf_token %}
-                                                <button type="submit" class="btn btn-sm btn-danger fw-bold" onclick="return confirm('Delete this account?');">Delete</button>
+                                                <button type="submit" class="btn btn-sm btn-danger fw-bold shadow-sm" onclick="return confirm('Delete this account?');">Delete</button>
                                             </form>
                                         {% endif %}
                                     </td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="7" class="text-center text-muted py-5">No customers found.</td>
+                                    <td colspan="5" class="text-center text-muted py-5">No customers found.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -198,86 +142,97 @@
                 </div>
             </div>
 
+            <!-- ============== APPLICATION MANAGEMENT ============== -->
             <div class="tab-pane fade" id="application">
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
-                        <div class="card border-0 shadow-sm p-4 h-100" style="border-left: 4px solid #0dcaf0;">
-                            <h5 class="fw-bold text-dark mb-1">Latest Version</h5>
-                            <div class="display-6 fw-bold text-info my-2">{{ app_version }}</div>
-                            <p class="text-muted small mb-3">System is up to date.</p>
-                            <form method="POST" action="/custom-admin/check-updates/" class="mt-auto w-100">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-sm btn-outline-info w-100">Check for Updates</button>
-                            </form>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card border-0 shadow-sm p-4 h-100" style="border-left: 4px solid #198754;">
-                            <h5 class="fw-bold text-dark mb-3">Health Monitoring</h5>
-                            <div class="d-flex justify-content-between mb-2 small"><span class="text-muted">Server Uptime</span><span class="fw-bold text-success">{{ uptime_percentage }}</span></div>
-                            <div class="d-flex justify-content-between mb-2 small">
-                                <span class="text-muted">Database Status</span>
-                                <span class="fw-bold {% if db_status == 'Connected' %}text-success{% else %}text-danger{% endif %}">{{ db_status }}</span>
+                        <div class="card border-0 shadow-sm p-4 h-100">
+                            <h5 class="fw-bold text-dark">Latest Version</h5>
+                            <h3 class="text-info my-2">{{ app_version }}</h3>
+                            <p class="text-muted small mb-4">System is up to date.</p>
+                            <div class="dropdown mt-auto">
+                                <button class="btn btn-outline-primary dropdown-toggle w-100 fw-bold" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    Version Control
+                                </button>
+                                <ul class="dropdown-menu w-100 shadow-sm border-0">
+                                    <li><a class="dropdown-item py-2" href="#">Check for Updates</a></li>
+                                    <li><a class="dropdown-item py-2" href="#">Rollback to v2.4.0</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item py-2" href="#">Manage Configurations</a></li>
+                                </ul>
                             </div>
-                            <div class="d-flex justify-content-between mb-2 small"><span class="text-muted">API Latency</span><span class="fw-bold text-warning">{{ api_latency }}ms</span></div>
-                            <a href="/custom-admin/logs/" target="_blank" class="btn btn-sm btn-outline-success mt-auto w-100">View Detailed Logs</a>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card border-0 shadow-sm p-4 h-100" style="border-left: 4px solid #6f42c1;">
-                            <h5 class="fw-bold text-dark mb-1">Version Control</h5>
-                            <p class="text-muted small mb-3">Manage deployments and rollback instances.</p>
-                            <div class="mt-auto d-grid gap-2">
-                                <form method="POST" action="/custom-admin/rollback/" class="m-0">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Rollback to v2.4.0</button>
-                                </form>
-                                <a href="/custom-admin/configs/" class="btn btn-sm btn-outline-secondary w-100">Manage Configurations</a>
+                    <div class="col-md-8">
+                        <div class="card border-0 shadow-sm p-4 h-100 cursor-pointer" data-bs-toggle="collapse" data-bs-target="#telemetryGrid">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="fw-bold text-dark mb-0">Health Monitoring</h5>
+                                <span class="text-primary small fw-bold">View Telemetry ▼</span>
+                            </div>
+                            <div class="row flex-grow-1 align-items-center">
+                                <div class="col-4 text-center border-end">
+                                    <div class="text-muted small fw-bold mb-1">Server Uptime</div>
+                                    <div class="fs-4 fw-bold text-success">{{ uptime_percentage }}</div>
+                                </div>
+                                <div class="col-4 text-center border-end">
+                                    <div class="text-muted small fw-bold mb-1">Database Status</div>
+                                    <div class="fs-4 fw-bold text-dark">{{ db_status }}</div>
+                                </div>
+                                <div class="col-4 text-center">
+                                    <div class="text-muted small fw-bold mb-1">API Latency</div>
+                                    <div class="fs-4 fw-bold text-warning">{{ api_latency }}ms</div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="row g-4 mb-4">
-                    <div class="col-md-6">
-                        <div class="card p-4 shadow-sm border-0 h-100">
-                            <h6 class="fw-bold mb-3">System Performance (CPU)</h6>
-                            <canvas id="sysPerformanceChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card p-4 shadow-sm border-0 h-100">
-                            <h6 class="fw-bold mb-3">API Traffic (Requests/min)</h6>
-                            <canvas id="apiTrafficChart"></canvas>
+                <div class="collapse" id="telemetryGrid">
+                    <div class="card shadow-sm border-0 mb-4 p-4 bg-light">
+                        <div class="row g-4">
+                            <div class="col-md-3"><div class="border rounded p-2 bg-white"><h6 class="small fw-bold mb-1 text-center text-muted">CPU</h6><div class="telemetry-chart-container"><canvas id="cpuChart"></canvas></div></div></div>
+                            <div class="col-md-3"><div class="border rounded p-2 bg-white"><h6 class="small fw-bold mb-1 text-center text-muted">Jobs</h6><div class="telemetry-chart-container"><canvas id="jobsChart"></canvas></div></div></div>
+                            <div class="col-md-3"><div class="border rounded p-2 bg-white"><h6 class="small fw-bold mb-1 text-center text-muted">RAG Usage</h6><div class="telemetry-chart-container"><canvas id="ragChart"></canvas></div></div></div>
+                            <div class="col-md-3"><div class="border rounded p-2 bg-white"><h6 class="small fw-bold mb-1 text-center text-muted">Process</h6><div class="telemetry-chart-container"><canvas id="processChart"></canvas></div></div></div>
+                            
+                            <div class="col-md-3"><div class="border rounded p-2 bg-white"><h6 class="small fw-bold mb-1 text-center text-muted">Memory</h6><div class="telemetry-chart-container"><canvas id="memoryChart"></canvas></div></div></div>
+                            <div class="col-md-3"><div class="border rounded p-2 bg-white"><h6 class="small fw-bold mb-1 text-center text-muted">API Traffic</h6><div class="telemetry-chart-container"><canvas id="apiChart"></canvas></div></div></div>
+                            <div class="col-md-3"><div class="border rounded p-2 bg-white"><h6 class="small fw-bold mb-1 text-center text-muted">Query Monitor</h6><div class="telemetry-chart-container"><canvas id="queryChart"></canvas></div></div></div>
+                            <div class="col-md-3"><div class="border rounded p-2 bg-white"><h6 class="small fw-bold mb-1 text-center text-muted">NGINX</h6><div class="telemetry-chart-container"><canvas id="nginxChart"></canvas></div></div></div>
+                            
+                            <div class="col-md-3"><div class="border rounded p-2 bg-white"><h6 class="small fw-bold mb-1 text-center text-muted">Storage</h6><div class="telemetry-chart-container"><canvas id="storageChart"></canvas></div></div></div>
+                            <div class="col-md-3"><div class="border rounded p-2 bg-white"><h6 class="small fw-bold mb-1 text-center text-muted">Latency</h6><div class="telemetry-chart-container"><canvas id="latencyChart"></canvas></div></div></div>
+                            <div class="col-md-3"><div class="border rounded p-2 bg-white"><h6 class="small fw-bold mb-1 text-center text-muted">Users</h6><div class="telemetry-chart-container"><canvas id="usersChart"></canvas></div></div></div>
+                            <div class="col-md-3"><div class="border rounded p-2 bg-white"><h6 class="small fw-bold mb-1 text-center text-muted">Django</h6><div class="telemetry-chart-container"><canvas id="djangoChart"></canvas></div></div></div>
                         </div>
                     </div>
                 </div>
 
                 <div class="card shadow-sm border-0 mb-4">
-                    <div class="card-header bg-white border-bottom py-3 px-4">
+                    <div class="card-header bg-white py-3">
                         <h5 class="mb-0 fw-bold text-dark">Customer Feedback & Support</h5>
                     </div>
-                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                    <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light text-muted small">
                                 <tr>
                                     <th class="px-4 py-3">User</th>
-                                    <th>Rating</th>
-                                    <th>Message</th>
-                                    <th class="text-end px-4">Date</th>
+                                    <th class="py-3">Rating</th>
+                                    <th class="py-3">Message</th>
+                                    <th class="px-4 py-3 text-end">Date</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for fb in feedbacks %}
                                 <tr>
                                     <td class="px-4 py-3 fw-bold text-dark">{{ fb.user.username }}</td>
-                                    <td><span class="text-warning fw-bold">{{ fb.rating }} ★</span></td>
-                                    <td class="small text-muted text-truncate" style="max-width: 300px;">{{ fb.text }}</td>
-                                    <td class="text-end px-4 small text-muted">{{ fb.created_at|date:"M d, Y" }}</td>
+                                    <td class="py-3 text-warning fw-bold">{{ fb.rating }} ★</td>
+                                    <td class="py-3 text-muted">{{ fb.text }}</td>
+                                    <td class="px-4 py-3 text-end small text-muted">{{ fb.created_at|date:"M d, Y" }}</td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted py-4">No recent feedback or support tickets found.</td>
+                                    <td colspan="4" class="text-center text-muted py-5">No recent feedback.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -286,6 +241,7 @@
                 </div>
             </div>
 
+            <!-- ============== AD MANAGEMENT ============== -->
             <div class="tab-pane fade" id="ads">
                 <h5 class="fw-bold text-dark mb-3">1. Ad Registration / Queue</h5>
                 <div class="row g-4 mb-4">
@@ -370,7 +326,7 @@
                                                 <td class="py-3"><span class="badge bg-light text-dark border">{{ ad.get_placement_display|default:ad.placement }}</span></td>
                                                 <td class="py-3 small text-muted">{{ ad.start_date|date:"M d" }} to {{ ad.end_date|date:"M d" }}</td>
                                                 <td class="px-4 py-3 text-end">
-                                                    <form method="POST" action="/custom-admin/ads/approve/{{ ad.id }}/" class="m-0">
+                                                    <form method="POST" action="{% url 'approve_ad' ad.id %}" class="m-0">
                                                         {% csrf_token %}
                                                         <button type="submit" class="btn btn-sm btn-success fw-bold px-3 shadow-sm">Approve</button>
                                                     </form>
@@ -430,12 +386,727 @@
                 </div>
             </div>
 
+            <!-- ============== 💰 BILLING MANAGEMENT ============== -->
+            <div class="tab-pane fade" id="billing">
+                
+                <!-- Top KPI Cards -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-3">
+                        <div class="card metric-card shadow-sm p-4 bg-white h-100 border-0" style="border-left: 4px solid #198754;">
+                            <div class="text-muted text-uppercase small fw-bold">Monthly Revenue</div>
+                            <div class="display-6 fw-bold text-success mt-2">₹{{ monthly_revenue|default:"0" }}</div>
+                            <small class="text-success mt-1"><i>▲ {{ revenue_growth|default:"0" }}% vs last month</i></small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card metric-card shadow-sm p-4 bg-white h-100 border-0" style="border-left: 4px solid #0d6efd;">
+                            <div class="text-muted text-uppercase small fw-bold">Total Transactions</div>
+                            <div class="display-6 fw-bold text-primary mt-2">{{ total_transactions|default:"0" }}</div>
+                            <small class="text-muted mt-1">All time</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card metric-card shadow-sm p-4 bg-white h-100 border-0" style="border-left: 4px solid #ffc107;">
+                            <div class="text-muted text-uppercase small fw-bold">Pending Payments</div>
+                            <div class="display-6 fw-bold text-warning mt-2">{{ pending_payments|default:"0" }}</div>
+                            <small class="text-muted mt-1">Awaiting verification</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card metric-card shadow-sm p-4 bg-white h-100 border-0" style="border-left: 4px solid #dc3545;">
+                            <div class="text-muted text-uppercase small fw-bold">Refunds Issued</div>
+                            <div class="display-6 fw-bold text-danger mt-2">{{ refund_count|default:"0" }}</div>
+                            <small class="text-muted mt-1">This month</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="row g-4 mb-4">
+                    <div class="col-lg-8">
+                        <div class="card shadow-sm border-0 p-4 h-100">
+                            <h6 class="fw-bold text-dark mb-3">📈 Revenue Trends (Last 6 Months)</h6>
+                            <canvas id="billingRevenueChart" style="height: 250px;"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card shadow-sm border-0 p-4 h-100">
+                            <h6 class="fw-bold text-dark mb-3">💳 Payment Methods</h6>
+                            <canvas id="paymentMethodChart" style="height: 250px;"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Subscription Plans -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold text-dark">📦 Subscription Plans</h5>
+                        <button class="btn btn-sm btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#addPlanModal">
+                            + New Plan
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light text-muted small">
+                                <tr>
+                                    <th class="px-4 py-3">Plan Name</th>
+                                    <th class="py-3">Price (₹/mo)</th>
+                                    <th class="py-3">Active Subscribers</th>
+                                    <th class="py-3">Monthly Revenue</th>
+                                    <th class="py-3">Status</th>
+                                    <th class="px-4 py-3 text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for plan in subscription_plans %}
+                                <tr>
+                                    <td class="px-4 py-3 fw-bold text-dark">{{ plan.name }}</td>
+                                    <td class="py-3">₹{{ plan.price }}</td>
+                                    <td class="py-3">{{ plan.subscriber_count }}</td>
+                                    <td class="py-3 text-success fw-bold">₹{{ plan.monthly_revenue }}</td>
+                                    <td class="py-3">
+                                        <span class="badge bg-{% if plan.is_active %}success{% else %}secondary{% endif %} px-2 py-1">
+                                            {{ plan.is_active|yesno:"Active,Inactive" }}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-end">
+                                        <form method="POST" action="{% url 'toggle_plan' plan.id %}" class="d-inline">
+                                            {% csrf_token %}
+                                            <button class="btn btn-sm btn-outline-warning fw-bold">Toggle</button>
+                                        </form>
+                                        <form method="POST" action="{% url 'edit_plan' plan.id %}" class="d-inline">
+                                            {% csrf_token %}
+                                            <button class="btn btn-sm btn-outline-primary fw-bold">Edit</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-5">No subscription plans defined yet.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Recent Transactions -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold text-dark">🧾 Recent Transactions</h5>
+                        <div class="d-flex gap-2">
+                            <select class="form-select form-select-sm w-auto">
+                                <option>All Status</option>
+                                <option>Paid</option>
+                                <option>Pending</option>
+                                <option>Failed</option>
+                                <option>Refunded</option>
+                            </select>
+                            <button class="btn btn-sm btn-outline-success fw-bold">Export</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light text-muted small">
+                                <tr>
+                                    <th class="px-4 py-3">Transaction ID</th>
+                                    <th class="py-3">Customer</th>
+                                    <th class="py-3">Amount</th>
+                                    <th class="py-3">Plan</th>
+                                    <th class="py-3">Date</th>
+                                    <th class="py-3">Status</th>
+                                    <th class="px-4 py-3 text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for txn in recent_transactions %}
+                                <tr>
+                                    <td class="px-4 py-3 small text-muted">#{{ txn.id|stringformat:"06d" }}</td>
+                                    <td class="py-3 fw-bold text-dark">{{ txn.user.username }}</td>
+                                    <td class="py-3 fw-bold">₹{{ txn.amount }}</td>
+                                    <td class="py-3">{{ txn.title }}</td>
+                                    <td class="py-3 small text-muted">{{ txn.date|date:"M d, Y h:i A" }}</td>
+                                    <td class="py-3">
+                                        {% if txn.status == 'Paid' %}
+                                            <span class="badge bg-success px-2 py-1">Paid</span>
+                                        {% elif txn.status == 'Pending' %}
+                                            <span class="badge bg-warning text-dark px-2 py-1">Pending</span>
+                                        {% elif txn.status == 'Failed' %}
+                                            <span class="badge bg-danger px-2 py-1">Failed</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary px-2 py-1">{{ txn.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-4 py-3 text-end">
+                                        <a href="{% url 'billing_history' txn.user.id %}" class="btn btn-sm btn-outline-info fw-bold">View</a>
+                                        {% if txn.status == 'Pending' %}
+                                            <form method="POST" action="{% url 'verify_transaction' txn.id %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <button class="btn btn-sm btn-success fw-bold">Verify</button>
+                                            </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-5">No transactions yet.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Failed Payments + Invoices side by side -->
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <div class="card shadow-sm border-0 p-4 h-100">
+                            <h6 class="fw-bold text-dark mb-3">⚠️ Failed Payment Recovery</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-0">
+                                    <tbody>
+                                        {% for failed in failed_payments %}
+                                        <tr>
+                                            <td class="py-2">
+                                                <div class="fw-bold text-dark">{{ failed.user.username }}</div>
+                                                <small class="text-muted">{{ failed.date|date:"M d, Y" }}</small>
+                                            </td>
+                                            <td class="py-2 text-end">
+                                                <span class="text-danger fw-bold">₹{{ failed.amount }}</span>
+                                            </td>
+                                            <td class="py-2 text-end">
+                                                <form method="POST" action="{% url 'retry_payment' failed.id %}" class="d-inline">
+                                                    {% csrf_token %}
+                                                    <button class="btn btn-sm btn-outline-primary fw-bold">Retry</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr><td class="text-center text-muted py-3">No failed payments 🎉</td></tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card shadow-sm border-0 p-4 h-100">
+                            <h6 class="fw-bold text-dark mb-3">📨 Outstanding Invoices</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-0">
+                                    <tbody>
+                                        {% for invoice in outstanding_invoices %}
+                                        <tr>
+                                            <td class="py-2">
+                                                <div class="fw-bold text-dark">INV-{{ invoice.id|stringformat:"05d" }}</div>
+                                                <small class="text-muted">{{ invoice.customer.username }}</small>
+                                            </td>
+                                            <td class="py-2 text-end">
+                                                <span class="fw-bold">₹{{ invoice.amount }}</span><br>
+                                                <small class="text-danger">Due {{ invoice.due_date|date:"M d" }}</small>
+                                            </td>
+                                            <td class="py-2 text-end">
+                                                <form method="POST" action="{% url 'send_invoice' invoice.id %}" class="d-inline">
+                                                    {% csrf_token %}
+                                                    <button class="btn btn-sm btn-outline-warning fw-bold">Send</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr><td class="text-center text-muted py-3">No outstanding invoices.</td></tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============== 🛠️ CONFIGURATION ============== -->
+            <div class="tab-pane fade" id="configuration">
+                
+                <!-- Quick Action Tiles -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-4">
+                        <div class="card shadow-sm border-0 p-4 h-100 text-center cursor-pointer" data-bs-toggle="modal" data-bs-target="#generalSettingsModal">
+                            <div class="fs-1 mb-2">⚙️</div>
+                            <h6 class="fw-bold text-dark">General Settings</h6>
+                            <p class="text-muted small mb-0">App name, support email, branding</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card shadow-sm border-0 p-4 h-100 text-center cursor-pointer" data-bs-toggle="modal" data-bs-target="#paymentGatewayModal">
+                            <div class="fs-1 mb-2">💳</div>
+                            <h6 class="fw-bold text-dark">Payment Gateway</h6>
+                            <p class="text-muted small mb-0">Razorpay keys, currency, taxes</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card shadow-sm border-0 p-4 h-100 text-center cursor-pointer" data-bs-toggle="modal" data-bs-target="#emailConfigModal">
+                            <div class="fs-1 mb-2">📧</div>
+                            <h6 class="fw-bold text-dark">Email / SMTP</h6>
+                            <p class="text-muted small mb-0">Outgoing mail server settings</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card shadow-sm border-0 p-4 h-100 text-center cursor-pointer" data-bs-toggle="modal" data-bs-target="#securityModal">
+                            <div class="fs-1 mb-2">🔒</div>
+                            <h6 class="fw-bold text-dark">Security</h6>
+                            <p class="text-muted small mb-0">2FA, password policies, sessions</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card shadow-sm border-0 p-4 h-100 text-center cursor-pointer" data-bs-toggle="modal" data-bs-target="#apiKeysModal">
+                            <div class="fs-1 mb-2">🔑</div>
+                            <h6 class="fw-bold text-dark">API Keys</h6>
+                            <p class="text-muted small mb-0">OpenAI, vector DB, integrations</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card shadow-sm border-0 p-4 h-100 text-center cursor-pointer" data-bs-toggle="modal" data-bs-target="#backupModal">
+                            <div class="fs-1 mb-2">💾</div>
+                            <h6 class="fw-bold text-dark">Backup & Restore</h6>
+                            <p class="text-muted small mb-0">Database backups, exports</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Server Configuration Form -->
+                <div class="row g-4 mb-4">
+                    <div class="col-lg-6">
+                        <div class="card shadow-sm border-0 p-4 h-100">
+                            <h5 class="fw-bold text-dark mb-3">🖥️ Server Configuration</h5>
+                            <form method="POST" action="{% url 'manage_configs' %}">
+                                {% csrf_token %}
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="maintenanceMode" name="maintenance_mode" {% if maintenance_mode %}checked{% endif %}>
+                                    <label class="form-check-label fw-bold" for="maintenanceMode">Maintenance Mode</label>
+                                    <small class="d-block text-muted">Disables public access temporarily.</small>
+                                </div>
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="debugMode" name="debug_mode" {% if debug_mode %}checked{% endif %}>
+                                    <label class="form-check-label fw-bold" for="debugMode">Debug Mode</label>
+                                    <small class="d-block text-muted">Show stack traces in errors (DEV ONLY).</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Max Upload Size (MB)</label>
+                                    <input type="number" class="form-control" name="max_upload_size" value="{{ max_upload_size|default:'5' }}" min="1" max="100">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Session Timeout (minutes)</label>
+                                    <input type="number" class="form-control" name="session_timeout" value="{{ session_timeout|default:'120' }}" min="5" max="1440">
+                                </div>
+                                <button type="submit" class="btn btn-primary fw-bold w-100">💾 Save Server Config</button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card shadow-sm border-0 p-4 h-100">
+                            <h5 class="fw-bold text-dark mb-3">📊 Current System Limits</h5>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item d-flex justify-content-between"><span>Free Plan Contacts</span><strong>{{ free_plan_contacts|default:"50" }}</strong></li>
+                                <li class="list-group-item d-flex justify-content-between"><span>Pro Plan Contacts</span><strong>{{ pro_plan_contacts|default:"500" }}</strong></li>
+                                <li class="list-group-item d-flex justify-content-between"><span>Enterprise Plan Contacts</span><strong>Unlimited</strong></li>
+                                <li class="list-group-item d-flex justify-content-between"><span>OCR Scans / day</span><strong>{{ ocr_limit|default:"100" }}</strong></li>
+                                <li class="list-group-item d-flex justify-content-between"><span>AI Chat Messages / day</span><strong>{{ chat_limit|default:"50" }}</strong></li>
+                                <li class="list-group-item d-flex justify-content-between"><span>Storage per user</span><strong>{{ storage_limit|default:"1" }} GB</strong></li>
+                            </ul>
+                            <button class="btn btn-outline-primary fw-bold mt-3 w-100" data-bs-toggle="modal" data-bs-target="#editLimitsModal">✏️ Edit Limits</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Backend Team -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0 fw-bold text-dark">👥 Backend Team Members</h5>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light text-muted small">
+                                <tr>
+                                    <th class="px-4 py-3">Username</th>
+                                    <th class="py-3">Email</th>
+                                    <th class="py-3">Role</th>
+                                    <th class="py-3">Last Login</th>
+                                    <th class="px-4 py-3 text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for member in backend_team %}
+                                <tr>
+                                    <td class="px-4 py-3 fw-bold text-dark">{{ member.username }}</td>
+                                    <td class="py-3">{{ member.email|default:"N/A" }}</td>
+                                    <td class="py-3">
+                                        {% if member.is_superuser %}
+                                            <span class="badge bg-dark">Superuser</span>
+                                        {% else %}
+                                            <span class="badge bg-primary">Staff</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="py-3 small text-muted">{{ member.last_login|date:"M d, Y h:i A"|default:"Never" }}</td>
+                                    <td class="px-4 py-3 text-end">
+                                        {% if member == request.user %}
+                                            <span class="badge bg-secondary">You</span>
+                                        {% else %}
+                                            <form method="POST" action="{% url 'demote_team_member' member.id %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <button class="btn btn-sm btn-outline-warning fw-bold">Demote</button>
+                                            </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="5" class="text-center text-muted py-4">Only you have backend access.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- System Logs / Recent Activity -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold text-dark">📜 System Activity Log</h5>
+                        <a href="{% url 'view_logs' %}" class="btn btn-sm btn-outline-secondary fw-bold">View Full Logs</a>
+                    </div>
+                    <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light text-muted small">
+                                <tr>
+                                    <th class="px-4 py-2">Timestamp</th>
+                                    <th class="py-2">User</th>
+                                    <th class="py-2">Action</th>
+                                    <th class="px-4 py-2">IP Address</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in activity_logs %}
+                                <tr>
+                                    <td class="px-4 py-2 small text-muted">{{ log.timestamp|date:"M d, H:i:s" }}</td>
+                                    <td class="py-2 fw-bold">{{ log.user|default:"System" }}</td>
+                                    <td class="py-2">{{ log.action }}</td>
+                                    <td class="px-4 py-2 small text-muted">{{ log.ip }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="4" class="text-center text-muted py-3">No recent activity.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </main>
+
+    <!-- ============== MODALS ============== -->
+    
+    <!-- Add Plan Modal -->
+    <div class="modal fade" id="addPlanModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold">+ New Subscription Plan</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'create_plan' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Plan Name</label>
+                            <input type="text" class="form-control" name="plan_name" required placeholder="e.g., Pro, Enterprise">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Price (₹/month)</label>
+                            <input type="number" class="form-control" name="plan_price" required min="0" step="1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Contact Limit</label>
+                            <input type="number" class="form-control" name="plan_limit" required min="0">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary fw-bold">Create Plan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- General Settings Modal -->
+    <div class="modal fade" id="generalSettingsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold">⚙️ General Settings</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'save_general_settings' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Application Name</label>
+                            <input type="text" class="form-control" name="app_name" value="{{ app_name|default:'AI Card Scanner' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Support Email</label>
+                            <input type="email" class="form-control" name="support_email" value="{{ support_email|default:'' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Support Phone</label>
+                            <input type="text" class="form-control" name="support_phone" value="{{ support_phone|default:'' }}">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary fw-bold">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Gateway Modal -->
+    <div class="modal fade" id="paymentGatewayModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold">💳 Payment Gateway</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'save_payment_config' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Razorpay Key ID</label>
+                            <input type="text" class="form-control" name="razorpay_key_id" value="{{ razorpay_key_id|default:'' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Razorpay Key Secret</label>
+                            <input type="password" class="form-control" name="razorpay_key_secret" value="••••••••" placeholder="Leave blank to keep current">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Currency</label>
+                            <select class="form-select" name="currency">
+                                <option value="INR" selected>INR (₹)</option>
+                                <option value="USD">USD ($)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Tax Rate (GST %)</label>
+                                            <input type="number" class="form-control" name="tax_rate" value="{{ tax_rate|default:'18' }}" min="0" max="50">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary fw-bold">Save Keys</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email/SMTP Modal -->
+    <div class="modal fade" id="emailConfigModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold">📧 Email / SMTP Configuration</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'save_email_config' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">SMTP Host</label>
+                            <input type="text" class="form-control" name="smtp_host" value="{{ smtp_host|default:'smtp.gmail.com' }}">
+                        </div>
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label class="form-label fw-bold small">SMTP Port</label>
+                                <input type="number" class="form-control" name="smtp_port" value="{{ smtp_port|default:'587' }}">
+                            </div>
+                            <div class="col-6 mb-3">
+                                <label class="form-label fw-bold small">Use TLS</label>
+                                <select class="form-select" name="smtp_tls">
+                                    <option value="1" selected>Yes</option>
+                                    <option value="0">No</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">SMTP Username</label>
+                            <input type="text" class="form-control" name="smtp_user" value="{{ smtp_user|default:'' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">SMTP Password</label>
+                            <input type="password" class="form-control" name="smtp_password" placeholder="Leave blank to keep current">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary fw-bold">Save SMTP</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Modal -->
+    <div class="modal fade" id="securityModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold">🔒 Security Settings</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'save_security_config' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="require2FA" name="require_2fa" {% if require_2fa %}checked{% endif %}>
+                            <label class="form-check-label fw-bold" for="require2FA">Require 2FA for Staff</label>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="enforceStrongPwd" name="strong_password" {% if strong_password %}checked{% endif %}>
+                            <label class="form-check-label fw-bold" for="enforceStrongPwd">Enforce Strong Passwords</label>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Min Password Length</label>
+                            <input type="number" class="form-control" name="min_password_length" value="{{ min_password_length|default:'8' }}" min="6" max="32">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Max Login Attempts</label>
+                            <input type="number" class="form-control" name="max_login_attempts" value="{{ max_login_attempts|default:'5' }}" min="1" max="20">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary fw-bold">Save Security</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Keys Modal -->
+    <div class="modal fade" id="apiKeysModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold">🔑 API Keys & Integrations</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'save_api_keys' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">OpenAI API Key</label>
+                            <input type="password" class="form-control" name="openai_key" placeholder="sk-...">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Ollama Host</label>
+                            <input type="text" class="form-control" name="ollama_host" value="{{ ollama_host|default:'http://localhost:11434' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Vector DB Path</label>
+                            <input type="text" class="form-control" name="vector_db_path" value="{{ vector_db_path|default:'/chroma' }}">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary fw-bold">Save Keys</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backup Modal -->
+    <div class="modal fade" id="backupModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold">💾 Backup & Restore</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <p class="text-muted small">Last backup: <strong>{{ last_backup|default:'Never' }}</strong></p>
+                    <form method="POST" action="{% url 'create_backup' %}" class="mb-3">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">📦 Create Backup Now</button>
+                    </form>
+                    <form method="POST" action="{% url 'restore_backup' %}" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <input type="file" class="form-control" name="backup_file" accept=".sql,.json,.zip" required>
+                        </div>
+                        <button type="submit" class="btn btn-warning w-100 fw-bold">♻️ Restore from File</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Limits Modal -->
+    <div class="modal fade" id="editLimitsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold">✏️ Edit System Limits</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'save_system_limits' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Free Plan Contact Limit</label>
+                            <input type="number" class="form-control" name="free_plan_contacts" value="{{ free_plan_contacts|default:'50' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Pro Plan Contact Limit</label>
+                            <input type="number" class="form-control" name="pro_plan_contacts" value="{{ pro_plan_contacts|default:'500' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">OCR Scans / day</label>
+                            <input type="number" class="form-control" name="ocr_limit" value="{{ ocr_limit|default:'100' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">AI Chat Messages / day</label>
+                            <input type="number" class="form-control" name="chat_limit" value="{{ chat_limit|default:'50' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Storage per user (GB)</label>
+                            <input type="number" class="form-control" name="storage_limit" value="{{ storage_limit|default:'1' }}" step="0.1">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary fw-bold">Save Limits</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
+        // ✅ FIX: Restore the correct tab on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            const hash = window.location.hash;
+            if (hash) {
+                const triggerEl = document.querySelector(`button[data-bs-target="${hash}"]`);
+                if (triggerEl) {
+                    const tab = new bootstrap.Tab(triggerEl);
+                    tab.show();
+                }
+            }
+        });
+
         function createChart(ctxId, type, label, labels, data, bgColor, borderColor) {
             const ctx = document.getElementById(ctxId);
             if (ctx) {
@@ -457,20 +1128,51 @@
                 });
             }
         }
-        
-        const dynamicLabels = {{ chart_labels|safe|default:"[]" }};
-        const dynamicData = {{ chart_data|safe|default:"[]" }};
-        const dynamicPaymentLabels = {{ payment_labels|safe|default:"[]" }};
-        const dynamicPaymentData = {{ payment_data|safe|default:"[]" }};
-        const dynamicAcquisitionData = {{ acquisition_data|safe|default:"[]" }};
-        const dynamicUtilizationData = {{ utilization_data|safe|default:"[]" }};
-        
-        const adTrendLabels = {{ ad_trend_labels|safe|default:"[]" }};
-        const adTrendData = {{ ad_trend_data|safe|default:"[]" }};
 
-        const perfLabels = {{ perf_time_labels|safe|default:"[]" }};
-        const cpuData = {{ cpu_usage_data|safe|default:"[]" }};
-        const apiTrafficData = {{ api_traffic_data|safe|default:"[]" }};
+        function createTelemetryChart(ctxId, labels, data) {
+            const ctx = document.getElementById(ctxId);
+            if (ctx) {
+                new Chart(ctx.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: data,
+                            borderColor: 'rgba(220, 53, 69, 0.8)',
+                            borderWidth: 1.5,
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0.2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                        scales: {
+                            x: { display: false },
+                            y: { display: true, beginAtZero: true, ticks: { maxTicksLimit: 5, font: { size: 9 } } }
+                        },
+                        animation: false
+                    }
+                });
+            }
+        }
+        
+        const dynamicLabels = {{ chart_labels|safe }};
+        const dynamicData = {{ chart_data|safe }};
+        const dynamicPaymentLabels = {{ payment_labels|safe }};
+        const dynamicPaymentData = {{ payment_data|safe }};
+        const dynamicAcquisitionData = {{ acquisition_data|safe }};
+        const dynamicUtilizationData = {{ utilization_data|safe }};
+        
+        const adTrendLabels = {{ ad_trend_labels|safe }};
+        const adTrendData = {{ ad_trend_data|safe }};
+
+        // Billing-specific chart data
+        const billingRevenueLabels = {{ billing_revenue_labels|safe }};
+        const billingRevenueData = {{ billing_revenue_data|safe }};
+        const paymentMethodData = {{ payment_method_data|safe }};
 
         createChart('growthChart', 'line', 'Customers', dynamicLabels, dynamicData, 'rgba(13, 110, 253, 0.1)', '#0d6efd');
         createChart('acquisitionChart', 'bar', 'Subscriptions', dynamicPaymentLabels, dynamicAcquisitionData, '#198754', '#198754');
@@ -478,38 +1180,26 @@
         createChart('revenueChart', 'line', 'Revenue (INR)', dynamicPaymentLabels, dynamicPaymentData, 'rgba(255, 193, 7, 0.1)', '#ffc107');
         
         createChart('adTotalChart', 'bar', 'Total Ads', adTrendLabels, adTrendData, '#6f42c1', '#6f42c1');
-        createChart('adActiveChart', 'pie', 'Status', ['Active', 'Closed'], {{ ad_active_data|safe|default:"[]" }}, ['#198754', '#6c757d'], '#fff');
+        createChart('adActiveChart', 'pie', 'Status', ['Active', 'Closed'], {{ ad_active_data|safe }}, ['#198754', '#6c757d'], '#fff');
         createChart('adFreqChart', 'line', 'Frequency', adTrendLabels, adTrendData, 'rgba(13, 110, 253, 0.1)', '#0d6efd');
 
-        createChart('sysPerformanceChart', 'line', 'CPU %', perfLabels, cpuData, 'rgba(111, 66, 193, 0.1)', '#6f42c1');
-        createChart('apiTrafficChart', 'bar', 'Requests', perfLabels, apiTrafficData, 'rgba(25, 135, 84, 0.1)', '#198754');
+        // Billing charts
+        createChart('billingRevenueChart', 'bar', 'Revenue (₹)', billingRevenueLabels, billingRevenueData, '#198754', '#198754');
+        createChart('paymentMethodChart', 'doughnut', 'Methods', ['Razorpay', 'UPI', 'Card', 'Net Banking'], paymentMethodData, ['#0d6efd', '#198754', '#ffc107', '#6f42c1'], '#fff');
 
-        const customerFilter = document.getElementById('customerFilter');
-        if (customerFilter) {
-            customerFilter.addEventListener('change', function() {
-                const filterValue = this.value;
-                const rows = document.querySelectorAll('.customer-row');
-                
-                rows.forEach(row => {
-                    const status = row.getAttribute('data-status');
-                    const payment = row.getAttribute('data-payment');
-                    
-                    if (filterValue === 'all') {
-                        row.style.display = '';
-                    } else if (filterValue === 'active' && status === 'active') {
-                        row.style.display = '';
-                    } else if (filterValue === 'inactive' && status === 'inactive') {
-                        row.style.display = '';
-                    } else if (filterValue === 'subscribed' && payment === 'paid') {
-                        row.style.display = '';
-                    } else if (filterValue === 'unpaid' && payment === 'unpaid') {
-                        row.style.display = '';
-                    } else {
-                        row.style.display = 'none';
-                    }
-                });
-            });
-        }
+        const tLabels = {{ health_labels|safe }};
+        createTelemetryChart('cpuChart', tLabels, {{ cpu_data|safe }});
+        createTelemetryChart('jobsChart', tLabels, {{ jobs_data|safe }});
+        createTelemetryChart('ragChart', tLabels, {{ rag_data|safe }});
+        createTelemetryChart('processChart', tLabels, {{ process_data|safe }});
+        createTelemetryChart('memoryChart', tLabels, {{ memory_data|safe }});
+        createTelemetryChart('apiChart', tLabels, {{ api_data|safe }});
+        createTelemetryChart('queryChart', tLabels, {{ query_data|safe }});
+        createTelemetryChart('nginxChart', tLabels, {{ nginx_data|safe }});
+        createTelemetryChart('storageChart', tLabels, {{ storage_data|safe }});
+        createTelemetryChart('latencyChart', tLabels, {{ latency_data|safe }});
+        createTelemetryChart('usersChart', tLabels, {{ users_data|safe }});
+        createTelemetryChart('djangoChart', tLabels, {{ django_data|safe }});
     </script>
 </body>
 </html>
