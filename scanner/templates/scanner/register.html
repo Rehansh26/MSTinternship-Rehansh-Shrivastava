@@ -65,43 +65,22 @@
                     {% endif %}
 
                     <form method="POST" id="signupForm">
-                        {% csrf_token %}
+    {% csrf_token %}
+    
+    <div class="mb-3">
+        {{ form.as_p }}
+    </div>
 
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold text-dark">Username</label>
-                            <input type="text" name="username" class="form-control" required minlength="3" maxlength="150"
-                                   value="{{ form.username.value|default:'' }}" placeholder="Choose a username">
-                        </div>
+    {% if form.errors %}
+        <div class="alert alert-danger p-2 small">
+            Please fix the errors below.
+        </div>
+    {% endif %}
 
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold text-dark">Email (optional)</label>
-                            <input type="email" name="email" class="form-control"
-                                   value="{{ form.email.value|default:'' }}" placeholder="you@example.com">
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold text-dark">Password</label>
-                            <input type="password" name="password1" class="form-control" required minlength="8"
-                                   placeholder="At least 8 characters">
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold text-dark">Confirm Password</label>
-                            <input type="password" name="password2" class="form-control" required
-                                   placeholder="Re-enter password">
-                        </div>
-
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" id="agreeTerms" required>
-                            <label class="form-check-label small" for="agreeTerms">
-                                I agree to the <a href="#">Terms of Service</a> and authorize the ₹499 monthly charge.
-                            </label>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary w-100 mt-3 fw-bold py-2" id="signupBtn">
-                            💳 Sign Up & Pay ₹499
-                        </button>
-                    </form>
+    <button type="submit" class="btn btn-primary w-100 mt-3 fw-bold py-2" id="signupBtn">
+        💳 Sign Up & Pay ₹499
+    </button>
+</form>
 
                     <p class="text-center mt-4 text-muted small mb-0">
                         Already have an account? <a href="/login/">Log In</a>
@@ -129,17 +108,21 @@
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
                 });
 
-                const data = await signupResponse.json();
+                // Get the raw text first in case it's a 500 HTML error page
+                const responseText = await signupResponse.text();
 
-                if (data.error) {
-                    alert('Signup failed: ' + data.error);
-                    btn.disabled = false;
-                    btn.innerHTML = '💳 Sign Up & Pay ₹499';
-                    return;
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (e) {
+                    console.error("Server error HTML:", responseText);
+                    throw new Error("Server returned an HTML error page (Check terminal)");
                 }
 
-                if (!data.success) {
-                    window.location.reload();
+                if (data.error) {
+                    alert('Signup error: ' + data.error);
+                    btn.disabled = false;
+                    btn.innerHTML = '💳 Sign Up & Pay ₹499';
                     return;
                 }
 
@@ -149,7 +132,7 @@
                     window.location.href = data.redirect || '/dashboard/';
                 }
             } catch (err) {
-                alert('Something went wrong. Please try again.');
+                alert('Detailed Error: ' + err.message);
                 btn.disabled = false;
                 btn.innerHTML = '💳 Sign Up & Pay ₹499';
             }
