@@ -7,14 +7,21 @@ from PIL import Image
 from celery import shared_task
 from django.utils import timezone
 import psutil
-from .models import SystemTelemetry
 
-from .models import BusinessCard, Company, KnowledgeDocument, DocumentChunk, EmbeddingIndexMap
+from .models import (
+    SystemTelemetry,
+    BusinessCard,
+    Company,
+    KnowledgeDocument,
+    DocumentChunk,
+    EmbeddingIndexMap,
+)
 from .rag_services import build_card_document, calculate_hash, chunk_text, embed_text
 from .vector_store import upsert_vector
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
-VISION_MODEL = "llama3.2-vision"
+VISION_MODEL = "moondream"
+
 
 @shared_task
 def process_business_card(card_id):
@@ -47,10 +54,10 @@ Use exactly these keys:
             "prompt": prompt,
             "images": [encoded_image],
             "stream": False,
-            "format": "json"
+            "format": "json",
         }
 
-        response = requests.post(OLLAMA_URL, json=payload, timeout=180)
+        response = requests.post(OLLAMA_URL, json=payload, timeout=600)
         response.raise_for_status()
         ai_text = response.json().get("response", "").strip()
 
@@ -104,7 +111,11 @@ Use exactly these keys:
                 company_obj, _ = Company.objects.get_or_create(
                     user=card.user,
                     name=extracted_company,
-                    defaults={"normalized_name": " ".join(extracted_company.lower().strip().split())},
+                    defaults={
+                        "normalized_name": " ".join(
+                            extracted_company.lower().strip().split()
+                        )
+                    },
                 )
                 card.company_link = company_obj
 
@@ -124,7 +135,11 @@ Use exactly these keys:
 
 @shared_task
 def index_contact_for_rag(card_id):
-    card = BusinessCard.objects.select_related("company_link", "met_at_event").prefetch_related("domains").get(id=card_id)
+    card = (
+        BusinessCard.objects.select_related("company_link", "met_at_event")
+        .prefetch_related("domains")
+        .get(id=card_id)
+    )
 
     text, metadata = build_card_document(card)
     source_hash = calculate_hash(text)

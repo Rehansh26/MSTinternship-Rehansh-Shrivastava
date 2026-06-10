@@ -1,7 +1,7 @@
 import hashlib
 import requests
 
-OLLAMA_EMBED_URL = "http://localhost:11434/api/embeddings"
+OLLAMA_EMBED_URL = "http://localhost:11434/api/embed"
 EMBED_MODEL = "nomic-embed-text"
 
 
@@ -57,7 +57,10 @@ def chunk_text(text, max_chars=800):
 
 
 def embed_text(text):
-    payload = {"model": EMBED_MODEL, "prompt": text}
+    payload = {"model": EMBED_MODEL, "input": text}
     response = requests.post(OLLAMA_EMBED_URL, json=payload, timeout=120)
     response.raise_for_status()
-    return response.json()["embedding"]
+    data = response.json()
+    if "embeddings" in data and len(data["embeddings"]) > 0:
+        return data["embeddings"][0]
+    raise ValueError("API response did not contain expected embedding data.")

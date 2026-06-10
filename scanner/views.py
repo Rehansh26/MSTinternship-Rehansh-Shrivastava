@@ -39,12 +39,10 @@ from .rag_services import embed_text
 from .vector_store import search_vectors
  
 # ---------------------------------------------------------------------------
-# Razorpay client — set to None if keys are missing/placeholder.
-# To enable real payments, set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in
-# settings.py with your actual keys from the Razorpay dashboard.
-# While they are placeholder/missing the app runs in BYPASS MODE:
-# users are created, a mock order_id is stored, and the payment modal is
-# skipped entirely — the user lands directly on the dashboard.
+# Razorpay — bypass mode when keys are missing/placeholder.
+# Add real keys to .env to enable live payments:
+#   RAZORPAY_KEY_ID=rzp_test_yourkey
+#   RAZORPAY_KEY_SECRET=yoursecret
 # ---------------------------------------------------------------------------
 _rp_key    = getattr(settings, 'RAZORPAY_KEY_ID',    '')
 _rp_secret = getattr(settings, 'RAZORPAY_KEY_SECRET', '')
@@ -99,30 +97,44 @@ def log_admin_action(request, action_text):
         ip_address=request.META.get('REMOTE_ADDR')
     )
  
+ 
 def scan_card(request):
     if not request.user.is_authenticated:
         return JsonResponse({'error': 'Authentication required. Please refresh and log in.'}, status=401)
  
-    if request.method == 'POST' and request.FILES.get('image'):
-        try:
-            image_file = request.FILES['image']
-            user_note = request.POST.get('manual_note', '')
-            
-            new_card = BusinessCard.objects.create(
-                user=request.user,
-                first_name="Pending",
-                last_name="Extraction...",
-                manual_note=user_note,
-                card_image=image_file,
-                is_approved=False
-            )
-            
-            process_business_card.delay(new_card.id)
-            return JsonResponse({'message': 'Card uploaded successfully! AI is processing in the background.'})
-            
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
-            
+    if request.method == 'POST':
+        # ── MULTI-UPLOAD: handle multiple files ──────────────────────────
+        image_files = request.FILES.getlist('image')
+        user_note   = request.POST.get('manual_note', '')
+ 
+        if not image_files:
+            return JsonResponse({'error': 'No images provided.'}, status=400)
+ 
+        created_ids = []
+        for image_file in image_files:
+            try:
+                new_card = BusinessCard.objects.create(
+                    user=request.user,
+                    first_name="Pending",
+                    last_name="Extraction...",
+                    manual_note=user_note,
+                    card_image=image_file,
+                    is_approved=False
+                )
+                process_business_card.delay(new_card.id)
+                created_ids.append(new_card.id)
+            except Exception as e:
+                # Log but continue processing remaining files
+                print(f"[scan_card] Failed to create card for {image_file.name}: {e}")
+ 
+        if not created_ids:
+            return JsonResponse({'error': 'All uploads failed. Please try again.'}, status=500)
+ 
+        return JsonResponse({
+            'message': f'{len(created_ids)} card(s) uploaded successfully! AI is processing in the background.',
+            'count': len(created_ids),
+        })
+ 
     return render(request, 'scanner/index.html')
  
  
@@ -143,7 +155,6 @@ def dashboard(request):
     relationships = KnowledgeRelationship.objects.filter(created_by=request.user)
  
     nodes_list = [{"id": entity.id, "label": entity.display_name, "group": entity.entity_type} for entity in entities]
-    
     edges_list = [{
         "from": rel.source_entity_id,
         "to": rel.target_entity_id,
@@ -189,7 +200,7 @@ def dashboard(request):
         'pending_tasks': pending_tasks,
         'domains': domains,
         'opportunities': opportunities,
-        'graph_nodes_json': graph_nodes_json, 
+        'graph_nodes_json': graph_nodes_json,
         'graph_edges_json': graph_edges_json,
         'bag_of_words': bag_of_words_scaled,
         'active_subscriptions': active_subscriptions,
@@ -362,7 +373,7 @@ def delete_card(request, card_id):
 @require_POST
 def copy_card(request, card_id):
     card = get_object_or_404(BusinessCard, id=card_id, user=request.user)
-    card.pk = None 
+    card.pk = None
     card.manual_note = f"[COPIED] {card.manual_note}" if card.manual_note else "[COPIED RECORD]"
     card.is_approved = False
     card.save()
@@ -373,7 +384,6 @@ def copy_card(request, card_id):
 def company_network(request, company_id):
     company = get_object_or_404(Company, id=company_id, user=request.user)
     employees = get_contacts_at_company_via_graph(company.id)
-    
     return render(request, 'scanner/company.html', {
         'company': company,
         'employees': employees,
@@ -385,7 +395,6 @@ def company_network(request, company_id):
 def domain_network(request, domain_id):
     domain = get_object_or_404(Domain, id=domain_id, user=request.user)
     contacts = get_contacts_by_domain_via_graph(domain.id)
-    
     return render(request, 'scanner/domain.html', {
         'domain': domain,
         'contacts': contacts,
@@ -397,25 +406,18 @@ def domain_network(request, domain_id):
 def export_csv(request):
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="my_contacts.csv"'
-    
     writer = csv.writer(response)
     writer.writerow(['First Name', 'Last Name', 'Company', 'Email', 'Phone', 'Notes', 'Scanned Date'])
-    
     cards = BusinessCard.objects.filter(user=request.user, is_approved=True).order_by('-scanned_at')
     for card in cards:
         writer.writerow([
-            card.first_name,
-            card.last_name,
-            card.company_name,
-            card.email,
-            card.phone_number,
-            card.manual_note,
+            card.first_name, card.last_name, card.company_name,
+            card.email, card.phone_number, card.manual_note,
             card.scanned_at.strftime("%Y-%m-%d")
         ])
     return response
  
  
-
 def register_user(request):
     if request.method == 'POST':
         form = UserCreationForm(request.POST)
@@ -431,7 +433,7 @@ def register_user(request):
                 rp_secret = getattr(settings, 'RAZORPAY_KEY_SECRET', '')
                 rp_ready  = bool(rp_key and rp_secret)
  
-                order_id    = f'order_mock_{user.id}'
+                order_id     = f'order_mock_{user.id}'
                 amount_paise = 49900
  
                 if rp_ready:
@@ -447,7 +449,7 @@ def register_user(request):
                         order_id = order['id']
                     except Exception as e:
                         print(f"[Razorpay] {e}")
-                        rp_ready = False  # fall back to bypass
+                        rp_ready = False
  
                 TransactionHistory.objects.create(
                     user=user,
@@ -468,7 +470,6 @@ def register_user(request):
                             'email': user.email,
                         })
                     else:
-                        # Bypass: no payment modal, go straight to dashboard
                         return JsonResponse({'success': True, 'redirect': '/dashboard/'})
  
                 return redirect('/dashboard/')
@@ -493,7 +494,7 @@ def verify_payment(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
  
-    razorpay_order_id = request.POST.get('razorpay_order_id')
+    razorpay_order_id  = request.POST.get('razorpay_order_id')
     razorpay_payment_id = request.POST.get('razorpay_payment_id')
     razorpay_signature = request.POST.get('razorpay_signature')
  
@@ -512,7 +513,6 @@ def verify_payment(request):
             txn.status = 'Paid'
             txn.payment_id = razorpay_payment_id
             txn.save()
- 
             profile, _ = BillingProfile.objects.get_or_create(user=txn.user)
             profile.has_paid = True
             profile.is_active = True
@@ -545,60 +545,47 @@ def settings_view(request):
     if request.method == 'POST':
         if 'update_profile' in request.POST:
             request.user.first_name = request.POST.get('first_name', '')
-            request.user.last_name = request.POST.get('last_name', '')
+            request.user.last_name  = request.POST.get('last_name', '')
             request.user.save()
-            
         elif 'change_password' in request.POST:
             password_form = PasswordChangeForm(request.user, request.POST)
             if password_form.is_valid():
                 user = password_form.save()
                 update_session_auth_hash(request, user)
-                
         elif 'add_email' in request.POST:
             new_email = request.POST.get('new_email', '').strip()
             if new_email and not UserEmail.objects.filter(email=new_email).exists():
                 UserEmail.objects.create(user=request.user, email=new_email)
-                
         elif 'add_phone' in request.POST:
             new_phone = request.POST.get('new_phone', '').strip()
             if new_phone and not UserPhone.objects.filter(phone_number=new_phone).exists():
                 UserPhone.objects.create(user=request.user, phone_number=new_phone)
-                
         elif 'delete_email' in request.POST:
-            email_id = request.POST.get('email_id')
-            UserEmail.objects.filter(id=email_id, user=request.user).delete()
-                
+            UserEmail.objects.filter(id=request.POST.get('email_id'), user=request.user).delete()
         elif 'delete_phone' in request.POST:
-            phone_id = request.POST.get('phone_id')
-            UserPhone.objects.filter(id=phone_id, user=request.user).delete()
-                
+            UserPhone.objects.filter(id=request.POST.get('phone_id'), user=request.user).delete()
         elif 'update_ad_prefs' in request.POST:
             prefs, _ = CustomerPreference.objects.get_or_create(user=request.user)
-            prefs.ad_tech = 'ad_tech' in request.POST
-            prefs.ad_finance = 'ad_finance' in request.POST
+            prefs.ad_tech      = 'ad_tech'      in request.POST
+            prefs.ad_finance   = 'ad_finance'   in request.POST
             prefs.ad_marketing = 'ad_marketing' in request.POST
-            prefs.ad_events = 'ad_events' in request.POST
+            prefs.ad_events    = 'ad_events'    in request.POST
             prefs.save()
             messages.success(request, "Advertisement preferences updated.")
-            
         return redirect('/settings/')
  
-    domains = Domain.objects.filter(user=request.user).order_by('name')
-    emails = request.user.emails.all() 
-    phones = request.user.phones.all() 
+    domains      = Domain.objects.filter(user=request.user).order_by('name')
+    emails       = request.user.emails.all()
+    phones       = request.user.phones.all()
     password_form = PasswordChangeForm(request.user)
-    cards = BusinessCard.objects.filter(user=request.user, is_approved=True).order_by('first_name')
-    prefs, _ = CustomerPreference.objects.get_or_create(user=request.user)
+    cards        = BusinessCard.objects.filter(user=request.user, is_approved=True).order_by('first_name')
+    prefs, _     = CustomerPreference.objects.get_or_create(user=request.user)
     transactions = TransactionHistory.objects.filter(user=request.user)[:5]
  
     return render(request, 'scanner/settings.html', {
-        'domains': domains,
-        'emails': emails,
-        'phones': phones,
-        'password_form': password_form,
-        'cards': cards,
-        'prefs': prefs,
-        'transactions': transactions,
+        'domains': domains, 'emails': emails, 'phones': phones,
+        'password_form': password_form, 'cards': cards,
+        'prefs': prefs, 'transactions': transactions,
     })
  
  
@@ -613,15 +600,11 @@ def delete_domain(request, domain_id):
 @login_required
 @require_POST
 def submit_feedback(request):
-    rating = request.POST.get('rating', 0)
-    text = request.POST.get('feedback_text', '')
-    
     Feedback.objects.create(
         user=request.user,
-        rating=rating,
-        text=text
+        rating=request.POST.get('rating', 0),
+        text=request.POST.get('feedback_text', '')
     )
-    
     messages.success(request, 'Thank you for your feedback! It has been securely recorded.')
     return redirect('/dashboard/')
  
@@ -630,37 +613,27 @@ def submit_feedback(request):
 @require_POST
 def initiate_payment_view(request):
     amount_in_rupees = float(request.POST.get('amount', 0))
-    amount_in_paise = int(amount_in_rupees * 100)
-    description = request.POST.get('description', 'CRM Transaction')
- 
-    order_id = f"order_mock_fallback_{request.user.id}"
+    amount_in_paise  = int(amount_in_rupees * 100)
+    description      = request.POST.get('description', 'CRM Transaction')
+    order_id         = f"order_mock_fallback_{request.user.id}"
  
     if razorpay_client:
         try:
-            order_data = {
-                'amount': amount_in_paise,
-                'currency': 'INR',
-                'receipt': f'receipt_user_{request.user.id}',
-                'payment_capture': 1
-            }
-            payment_order = razorpay_client.order.create(data=order_data)
+            payment_order = razorpay_client.order.create(data={
+                'amount': amount_in_paise, 'currency': 'INR',
+                'receipt': f'receipt_user_{request.user.id}', 'payment_capture': 1
+            })
             order_id = payment_order['id']
         except Exception as e:
             print(f"[initiate_payment_view] Razorpay error: {e}")
  
     txn = TransactionHistory.objects.create(
-        user=request.user,
-        title=description,
-        amount=amount_in_rupees,
-        status='Pending',
-        order_id=order_id,
+        user=request.user, title=description,
+        amount=amount_in_rupees, status='Pending', order_id=order_id,
     )
- 
     return JsonResponse({
-        'success': True,
-        'order_id': order_id,
-        'amount_paise': amount_in_paise,
-        'transaction_id': txn.id,
+        'success': True, 'order_id': order_id,
+        'amount_paise': amount_in_paise, 'transaction_id': txn.id,
         'key_id': getattr(settings, 'RAZORPAY_KEY_ID', 'rzp_test_PLACEHOLDER')
     })
  
@@ -668,33 +641,27 @@ def initiate_payment_view(request):
 @csrf_exempt
 @require_POST
 def razorpay_webhook_placeholder(request):
-    razorpay_order_id = request.POST.get('razorpay_order_id')
+    razorpay_order_id  = request.POST.get('razorpay_order_id')
     razorpay_payment_id = request.POST.get('razorpay_payment_id')
     razorpay_signature = request.POST.get('razorpay_signature')
-    
-    params_dict = {
-        'razorpay_order_id': razorpay_order_id,
-        'razorpay_payment_id': razorpay_payment_id,
-        'razorpay_signature': razorpay_signature
-    }
-    
+ 
     try:
         if razorpay_client:
-            razorpay_client.utility.verify_payment_signature(params_dict)
-        
+            razorpay_client.utility.verify_payment_signature({
+                'razorpay_order_id': razorpay_order_id,
+                'razorpay_payment_id': razorpay_payment_id,
+                'razorpay_signature': razorpay_signature,
+            })
         txn = TransactionHistory.objects.filter(order_id=razorpay_order_id).first()
         if txn:
-            txn.status = 'Paid'
+            txn.status     = 'Paid'
             txn.payment_id = razorpay_payment_id
             txn.save()
-            
             profile, _ = BillingProfile.objects.get_or_create(user=txn.user)
-            profile.has_paid = True
+            profile.has_paid  = True
             profile.is_active = True
             profile.save()
-        
         return JsonResponse({'status': 'Payment successful and verified!'})
-        
     except Exception as e:
         if razorpay_order_id:
             TransactionHistory.objects.filter(order_id=razorpay_order_id).update(status='Failed')
@@ -703,7 +670,7 @@ def razorpay_webhook_placeholder(request):
  
 @staff_required
 def admin_dashboard(request):
-    customers = User.objects.filter(is_staff=False).order_by('-date_joined')
+    customers       = User.objects.filter(is_staff=False).order_by('-date_joined')
     total_customers = customers.count()
  
     missing_profiles = customers.filter(billing_profile__isnull=True)
@@ -711,215 +678,150 @@ def admin_dashboard(request):
         BillingProfile.objects.bulk_create([BillingProfile(user=u) for u in missing_profiles])
  
     billing_profiles = BillingProfile.objects.select_related('user').all()
-    paid_count = billing_profiles.filter(has_paid=True, is_active=True).count()
-    unpaid_count = billing_profiles.filter(has_paid=False, is_active=True).count()
+    paid_count    = billing_profiles.filter(has_paid=True, is_active=True).count()
+    unpaid_count  = billing_profiles.filter(has_paid=False, is_active=True).count()
     churned_count = billing_profiles.filter(is_active=False).count()
-    churn_rate = f"{(churned_count / max(total_customers, 1)) * 100:.1f}%"
+    churn_rate    = f"{(churned_count / max(total_customers, 1)) * 100:.1f}%"
  
     pending_ads = Advertisement.objects.filter(is_approved=False).order_by('-created_at')
-    active_ads = Advertisement.objects.filter(is_approved=True).order_by('-last_event')
+    active_ads  = Advertisement.objects.filter(is_approved=True).order_by('-last_event')
  
     timeframe = request.GET.get('timeframe', 'months')
     if timeframe == 'days':
-        trunc_func = TruncDay('date_joined')
-        trunc_txn = TruncDay('date')
-        date_format = '%b %d'
+        trunc_func = TruncDay('date_joined');  trunc_txn = TruncDay('date');  date_format = '%b %d'
     elif timeframe == 'weeks':
-        trunc_func = TruncWeek('date_joined')
-        trunc_txn = TruncWeek('date')
-        date_format = 'Week %W'
+        trunc_func = TruncWeek('date_joined'); trunc_txn = TruncWeek('date'); date_format = 'Week %W'
     elif timeframe == 'years':
-        trunc_func = TruncYear('date_joined')
-        trunc_txn = TruncYear('date')
-        date_format = '%Y'
-    else: 
-        trunc_func = TruncMonth('date_joined')
-        trunc_txn = TruncMonth('date')
-        date_format = '%b %Y'
+        trunc_func = TruncYear('date_joined'); trunc_txn = TruncYear('date'); date_format = '%Y'
+    else:
+        trunc_func = TruncMonth('date_joined'); trunc_txn = TruncMonth('date'); date_format = '%b %Y'
  
-    user_growth = customers.annotate(date_group=trunc_func).values('date_group').annotate(count=Count('id')).order_by('date_group')
-    chart_labels = [entry['date_group'].strftime(date_format) for entry in user_growth if entry['date_group']]
-    chart_data = [entry['count'] for entry in user_growth if entry['date_group']]
+    user_growth  = customers.annotate(date_group=trunc_func).values('date_group').annotate(count=Count('id')).order_by('date_group')
+    chart_labels = [e['date_group'].strftime(date_format) for e in user_growth if e['date_group']]
+    chart_data   = [e['count'] for e in user_growth if e['date_group']]
  
-    revenue_history = TransactionHistory.objects.filter(status='Paid').annotate(date_group=trunc_txn).values('date_group').annotate(total_revenue=Sum('amount'), dynamic_count=Count('id')).order_by('date_group')
-    
-    payment_labels = [entry['date_group'].strftime(date_format) for entry in revenue_history if entry['date_group']]
-    payment_data = [float(entry['total_revenue']) for entry in revenue_history if entry['date_group']]
-    acquisition_data = [entry['dynamic_count'] for entry in revenue_history if entry['date_group']]
+    revenue_history  = TransactionHistory.objects.filter(status='Paid').annotate(date_group=trunc_txn).values('date_group').annotate(total_revenue=Sum('amount'), dynamic_count=Count('id')).order_by('date_group')
+    payment_labels   = [e['date_group'].strftime(date_format) for e in revenue_history if e['date_group']]
+    payment_data     = [float(e['total_revenue']) for e in revenue_history if e['date_group']]
+    acquisition_data = [e['dynamic_count'] for e in revenue_history if e['date_group']]
  
     if not payment_labels:
-        payment_labels = chart_labels if chart_labels else ["Current Period"]
-        payment_data = [0.0] * len(payment_labels)
-        acquisition_data = [0] * len(payment_labels)
+        payment_labels   = chart_labels if chart_labels else ["Current Period"]
+        payment_data     = [0.0] * len(payment_labels)
+        acquisition_data = [0]   * len(payment_labels)
  
-    active_utilization_count = billing_profiles.filter(is_active=True).count()
+    active_utilization_count   = billing_profiles.filter(is_active=True).count()
     inactive_utilization_count = billing_profiles.filter(is_active=False).count()
     utilization_data = [active_utilization_count, inactive_utilization_count]
  
-    total_ads = Advertisement.objects.count()
+    total_ads        = Advertisement.objects.count()
     active_vs_closed = Advertisement.objects.values('is_approved').annotate(count=Count('id'))
-    ad_active_data = [
-        active_vs_closed.get(is_approved=True)['count'] if active_vs_closed.filter(is_approved=True).exists() else 0,
-        active_vs_closed.get(is_approved=False)['count'] if active_vs_closed.filter(is_approved=False).exists() else 0
+    ad_active_data   = [
+        active_vs_closed.get(is_approved=True)['count']  if active_vs_closed.filter(is_approved=True).exists()  else 0,
+        active_vs_closed.get(is_approved=False)['count'] if active_vs_closed.filter(is_approved=False).exists() else 0,
     ]
  
-    ad_trends = Advertisement.objects.annotate(date_group=TruncMonth('created_at')).values('date_group').annotate(count=Count('id')).order_by('date_group')
-    ad_trend_labels = [entry['date_group'].strftime('%b %Y') for entry in ad_trends if entry['date_group']]
-    ad_trend_data = [entry['count'] for entry in ad_trends if entry['date_group']]
-    
+    ad_trends      = Advertisement.objects.annotate(date_group=TruncMonth('created_at')).values('date_group').annotate(count=Count('id')).order_by('date_group')
+    ad_trend_labels = [e['date_group'].strftime('%b %Y') for e in ad_trends if e['date_group']]
+    ad_trend_data   = [e['count'] for e in ad_trends if e['date_group']]
     if not ad_trend_labels:
-        ad_trend_labels = ["Current Month"]
-        ad_trend_data = [total_ads]
+        ad_trend_labels = ["Current Month"]; ad_trend_data = [total_ads]
  
-    app_version = "v2.5.0" 
-    
     try:
-        User.objects.exists() 
-        db_status = "Connected"
+        User.objects.exists(); db_status = "Connected"
     except Exception:
         db_status = "Disconnected"
  
-    boot_time = psutil.boot_time()
+    boot_time      = psutil.boot_time()
     uptime_seconds = time.time() - boot_time
-    uptime_days = int(uptime_seconds // (24 * 3600))
-    uptime_hours = int((uptime_seconds % (24 * 3600)) // 3600)
-    uptime_string = f"{uptime_days}d {uptime_hours}h"
- 
-    current_cpu = psutil.cpu_percent(interval=0.1)
-    
-    api_latency = random.randint(25, 45) 
+    uptime_string  = f"{int(uptime_seconds//(24*3600))}d {int((uptime_seconds%(24*3600))//3600)}h"
+    current_cpu    = psutil.cpu_percent(interval=0.1)
+    api_latency    = random.randint(25, 45)
  
     now = timezone.localtime()
     perf_time_labels = [(now - timedelta(minutes=5*i)).strftime('%H:%M') for i in range(5, -1, -1)]
-    cpu_usage_data = [random.randint(15, 40) for _ in range(5)] + [current_cpu]
+    cpu_usage_data   = [random.randint(15, 40) for _ in range(5)] + [current_cpu]
     api_traffic_data = [random.randint(100, 250) for _ in range(6)]
+    feedbacks        = Feedback.objects.select_related('user').order_by('-created_at')[:10]
+    health_labels    = json.dumps([f"{i}m" for i in range(20, 0, -1)])
  
-    feedbacks = Feedback.objects.select_related('user').order_by('-created_at')[:10]
- 
-    health_labels = json.dumps([f"{i}m" for i in range(20, 0, -1)])
-    
     def get_telemetry(base, variance):
         return json.dumps([max(0, base + random.uniform(-variance, variance)) for _ in range(20)])
  
     real_telemetry = list(SystemTelemetry.objects.order_by('-timestamp')[:20])
     real_telemetry.reverse()
-    
-    if not real_telemetry:
-        real_cpu_data = json.dumps([0] * 20)
-        real_memory_data = json.dumps([0] * 20)
-    else:
-        real_cpu_data = json.dumps([log.cpu_usage for log in real_telemetry])
-        real_memory_data = json.dumps([log.memory_usage for log in real_telemetry])
+    real_cpu_data    = json.dumps([l.cpu_usage    for l in real_telemetry] if real_telemetry else [0]*20)
+    real_memory_data = json.dumps([l.memory_usage for l in real_telemetry] if real_telemetry else [0]*20)
  
-    now_month = timezone.now().month
-    now_year = timezone.now().year
-    last_month = now_month - 1 if now_month > 1 else 12
-    last_month_year = now_year if now_month > 1 else now_year - 1
+    now_month        = timezone.now().month
+    now_year         = timezone.now().year
+    last_month       = now_month - 1 if now_month > 1 else 12
+    last_month_year  = now_year if now_month > 1 else now_year - 1
  
-    monthly_revenue = TransactionHistory.objects.filter(
-        status='Paid',
-        date__month=now_month,
-        date__year=now_year,
-    ).aggregate(total=Sum('amount'))['total'] or 0
+    monthly_revenue    = TransactionHistory.objects.filter(status='Paid', date__month=now_month,  date__year=now_year).aggregate(total=Sum('amount'))['total'] or 0
+    last_month_revenue = TransactionHistory.objects.filter(status='Paid', date__month=last_month, date__year=last_month_year).aggregate(total=Sum('amount'))['total'] or 0
+    revenue_growth     = f"{((monthly_revenue - last_month_revenue) / last_month_revenue) * 100:.1f}" if last_month_revenue else '0'
  
-    last_month_revenue = TransactionHistory.objects.filter(
-        status='Paid',
-        date__month=last_month,
-        date__year=last_month_year,
-    ).aggregate(total=Sum('amount'))['total'] or 0
- 
-    if last_month_revenue:
-        revenue_growth = f"{((monthly_revenue - last_month_revenue) / last_month_revenue) * 100:.1f}"
-    else:
-        revenue_growth = '0'
- 
-    backend_team = User.objects.filter(is_staff=True).order_by('-last_login')
- 
+    backend_team  = User.objects.filter(is_staff=True).order_by('-last_login')
     try:
         activity_logs = ActivityLog.objects.select_related('user')[:30]
     except Exception:
         activity_logs = []
  
     context = {
-        'users': customers, 
-        'total_users': total_customers,
-        'paid_count': paid_count,
-        'unpaid_count': unpaid_count,
-        'churn_rate': churn_rate,
-        'billing_profiles': billing_profiles,
-        'pending_ads': pending_ads,
-        'active_ads': active_ads,
-        'chart_labels': json.dumps(chart_labels),
-        'chart_data': json.dumps(chart_data),
-        'payment_labels': json.dumps(payment_labels),
-        'payment_data': json.dumps(payment_data),
-        'acquisition_data': json.dumps(acquisition_data),
-        'utilization_data': json.dumps(utilization_data),
-        'ad_total': total_ads,
-        'ad_active_data': json.dumps(ad_active_data),
-        'ad_trend_labels': json.dumps(ad_trend_labels),
-        'ad_trend_data': json.dumps(ad_trend_data),
-        'current_timeframe': timeframe,
-        'app_version': app_version,
-        'db_status': db_status,
-        'uptime_percentage': uptime_string,
+        'users': customers, 'total_users': total_customers,
+        'paid_count': paid_count, 'unpaid_count': unpaid_count,
+        'churn_rate': churn_rate, 'billing_profiles': billing_profiles,
+        'pending_ads': pending_ads, 'active_ads': active_ads,
+        'chart_labels': json.dumps(chart_labels), 'chart_data': json.dumps(chart_data),
+        'payment_labels': json.dumps(payment_labels), 'payment_data': json.dumps(payment_data),
+        'acquisition_data': json.dumps(acquisition_data), 'utilization_data': json.dumps(utilization_data),
+        'ad_total': total_ads, 'ad_active_data': json.dumps(ad_active_data),
+        'ad_trend_labels': json.dumps(ad_trend_labels), 'ad_trend_data': json.dumps(ad_trend_data),
+        'current_timeframe': timeframe, 'app_version': "v2.5.0",
+        'db_status': db_status, 'uptime_percentage': uptime_string,
         'api_latency': api_latency,
         'perf_time_labels': json.dumps(perf_time_labels),
         'cpu_usage_data': json.dumps(cpu_usage_data),
         'api_traffic_data': json.dumps(api_traffic_data),
-        'feedbacks': feedbacks,
-        'health_labels': health_labels,
-        'cpu_data': real_cpu_data,
-        'jobs_data': get_telemetry(10, 5),
-        'rag_data': get_telemetry(30, 20),
-        'process_data': get_telemetry(80, 10),
-        'memory_data': real_memory_data,
-        'api_data': get_telemetry(200, 50),
-        'query_data': get_telemetry(150, 40),
-        'nginx_data': get_telemetry(220, 60),
-        'storage_data': get_telemetry(70, 2),
-        'latency_data': get_telemetry(120, 30),
-        'users_data': get_telemetry(800, 100),
-        'django_data': get_telemetry(40, 15),
- 
-        'monthly_revenue': f"{monthly_revenue:,.0f}",
-        'revenue_growth': revenue_growth,
+        'feedbacks': feedbacks, 'health_labels': health_labels,
+        'cpu_data': real_cpu_data, 'memory_data': real_memory_data,
+        'jobs_data':    get_telemetry(10,  5),  'rag_data':     get_telemetry(30,  20),
+        'process_data': get_telemetry(80,  10), 'api_data':     get_telemetry(200, 50),
+        'query_data':   get_telemetry(150, 40), 'nginx_data':   get_telemetry(220, 60),
+        'storage_data': get_telemetry(70,  2),  'latency_data': get_telemetry(120, 30),
+        'users_data':   get_telemetry(800, 100),'django_data':  get_telemetry(40,  15),
+        'monthly_revenue': f"{monthly_revenue:,.0f}", 'revenue_growth': revenue_growth,
         'total_transactions': TransactionHistory.objects.count(),
-        'pending_payments': TransactionHistory.objects.filter(status='Pending').count(),
-        'refund_count': TransactionHistory.objects.filter(status='Refunded').count(),
+        'pending_payments':  TransactionHistory.objects.filter(status='Pending').count(),
+        'refund_count':      TransactionHistory.objects.filter(status='Refunded').count(),
         'subscription_plans': SubscriptionPlan.objects.annotate(
-            subscriber_count=Count(
-                'billingprofile',
-                filter=Q(billingprofile__has_paid=True)
-            )
+            subscriber_count=Count('billingprofile', filter=Q(billingprofile__has_paid=True))
         ),
         'recent_transactions': TransactionHistory.objects.select_related('user').order_by('-date')[:20],
-        'failed_payments': TransactionHistory.objects.filter(status='Failed').order_by('-date')[:10],
-        'outstanding_invoices': [],  
-        'billing_revenue_labels': json.dumps(['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']),
-        'billing_revenue_data': json.dumps([12000, 19000, 15000, 22000, 28000, 35000]),
-        'payment_method_data': json.dumps([45, 25, 20, 10]),
- 
-        'backend_team': backend_team,
-        'activity_logs': activity_logs,
-        'app_name': SystemConfig.objects.filter(key='app_name').first(),
-        'support_email': SystemConfig.objects.filter(key='support_email').first(),
-        'support_phone': SystemConfig.objects.filter(key='support_phone').first(),
+        'failed_payments':     TransactionHistory.objects.filter(status='Failed').order_by('-date')[:10],
+        'outstanding_invoices': [],
+        'billing_revenue_labels': json.dumps(['Jul','Aug','Sep','Oct','Nov','Dec']),
+        'billing_revenue_data':   json.dumps([12000,19000,15000,22000,28000,35000]),
+        'payment_method_data':    json.dumps([45,25,20,10]),
+        'backend_team': backend_team, 'activity_logs': activity_logs,
+        'app_name':           SystemConfig.objects.filter(key='app_name').first(),
+        'support_email':      SystemConfig.objects.filter(key='support_email').first(),
+        'support_phone':      SystemConfig.objects.filter(key='support_phone').first(),
         'free_plan_contacts': SystemConfig.objects.filter(key='free_plan_contacts').first(),
-        'pro_plan_contacts': SystemConfig.objects.filter(key='pro_plan_contacts').first(),
-        'ocr_limit': SystemConfig.objects.filter(key='ocr_limit').first(),
-        'chat_limit': SystemConfig.objects.filter(key='chat_limit').first(),
-        'storage_limit': SystemConfig.objects.filter(key='storage_limit').first(),
-        'last_backup': SystemConfig.objects.filter(key='last_backup').first(),
+        'pro_plan_contacts':  SystemConfig.objects.filter(key='pro_plan_contacts').first(),
+        'ocr_limit':          SystemConfig.objects.filter(key='ocr_limit').first(),
+        'chat_limit':         SystemConfig.objects.filter(key='chat_limit').first(),
+        'storage_limit':      SystemConfig.objects.filter(key='storage_limit').first(),
+        'last_backup':        SystemConfig.objects.filter(key='last_backup').first(),
     }
-    
     return render(request, 'scanner/admin_dashboard.html', context)
+ 
  
 @staff_required
 @require_POST
 def close_account(request, user_id):
     user_to_delete = get_object_or_404(User, id=user_id)
-    
     if user_to_delete == request.user:
         messages.error(request, "You cannot delete your own admin account.")
     elif user_to_delete.is_superuser:
@@ -928,7 +830,6 @@ def close_account(request, user_id):
         username = user_to_delete.username
         user_to_delete.delete()
         messages.success(request, f"Account '{username}' has been permanently closed.")
-        
     return admin_redirect('customers')
  
  
@@ -943,8 +844,7 @@ def toggle_admin(request, user_id):
     else:
         target_user.is_staff = not target_user.is_staff
         target_user.save()
-        status_text = "granted" if target_user.is_staff else "revoked"
-        messages.success(request, f"Admin privileges {status_text} for {target_user.username}.")
+        messages.success(request, f"Admin privileges {'granted' if target_user.is_staff else 'revoked'} for {target_user.username}.")
     return admin_redirect('customers')
  
  
@@ -980,19 +880,9 @@ def update_subscription_plan(request, user_id):
  
 @staff_required
 def billing_history(request, user_id):
-    user_obj = get_object_or_404(User, id=user_id)
-    transactions = TransactionHistory.objects.filter(
-        user=user_obj
-    ).order_by('-date')
- 
-    return render(
-        request,
-        'scanner/billing_history.html',
-        {
-            'customer': user_obj,
-            'transactions': transactions
-        }
-    )
+    user_obj     = get_object_or_404(User, id=user_id)
+    transactions = TransactionHistory.objects.filter(user=user_obj).order_by('-date')
+    return render(request, 'scanner/billing_history.html', {'customer': user_obj, 'transactions': transactions})
  
  
 @login_required
@@ -1038,32 +928,26 @@ def rollback_version(request):
 def manage_configs(request):
     if request.method == 'POST':
         cache.set('maintenance_mode', request.POST.get('maintenance_mode') == 'on', timeout=None)
-        cache.set('max_upload_size', request.POST.get('max_upload_size', '5'), timeout=None)
-        cache.set('session_timeout', request.POST.get('session_timeout', '120'), timeout=None)
-        cache.set('debug_mode', request.POST.get('debug_mode') == 'on', timeout=None)
-        
+        cache.set('max_upload_size',  request.POST.get('max_upload_size', '5'),      timeout=None)
+        cache.set('session_timeout',  request.POST.get('session_timeout', '120'),    timeout=None)
+        cache.set('debug_mode',       request.POST.get('debug_mode') == 'on',        timeout=None)
         messages.success(request, "Server configurations updated successfully.")
         return redirect('/custom-admin/configs/')
- 
-    context = {
+    return render(request, 'scanner/admin_configs.html', {
         'maintenance_mode': cache.get('maintenance_mode', False),
-        'max_upload_size': cache.get('max_upload_size', '5'),
-        'session_timeout': cache.get('session_timeout', '120'),
-        'debug_mode': cache.get('debug_mode', False),
-    }
-    return render(request, 'scanner/admin_configs.html', context)
+        'max_upload_size':  cache.get('max_upload_size', '5'),
+        'session_timeout':  cache.get('session_timeout', '120'),
+        'debug_mode':       cache.get('debug_mode', False),
+    })
  
  
 @staff_required
 def view_logs(request):
     try:
-        log_file_path = os.path.join(settings.BASE_DIR, 'debug.log')
-        
-        with open(log_file_path, 'r') as file:
-            real_logs = "".join(file.readlines()[-50:]) 
+        with open(os.path.join(settings.BASE_DIR, 'debug.log'), 'r') as f:
+            real_logs = "".join(f.readlines()[-50:])
     except FileNotFoundError:
         real_logs = "Log file not found."
-        
     return HttpResponse(f"<pre style='background:#1e1e1e; color:#00ff00; padding:20px;'>{real_logs}</pre>")
  
  
@@ -1086,7 +970,7 @@ def toggle_plan(request, plan_id):
     plan = get_object_or_404(SubscriptionPlan, id=plan_id)
     plan.is_active = not plan.is_active
     plan.save()
-    log_admin_action(request, f"Toggled plan: {plan.name} → {'Active' if plan.is_active else 'Inactive'}")
+    log_admin_action(request, f"Toggled plan: {plan.name}")
     messages.success(request, f"Plan '{plan.name}' {'activated' if plan.is_active else 'deactivated'}.")
     return admin_redirect('billing')
  
@@ -1103,8 +987,7 @@ def edit_plan(request, plan_id):
 @staff_required
 @require_POST
 def assign_plan(request, user_id):
-    plan_id = request.POST.get('plan_id')
-    plan = get_object_or_404(SubscriptionPlan, id=plan_id)
+    plan = get_object_or_404(SubscriptionPlan, id=request.POST.get('plan_id'))
     profile, _ = BillingProfile.objects.get_or_create(user_id=user_id)
     profile.plan = plan
     profile.plan_name = plan.name
@@ -1120,12 +1003,10 @@ def verify_transaction(request, txn_id):
     txn = get_object_or_404(TransactionHistory, id=txn_id)
     txn.status = 'Paid'
     txn.save()
- 
     profile, _ = BillingProfile.objects.get_or_create(user=txn.user)
     profile.has_paid = True
     profile.is_active = True
     profile.save()
- 
     log_admin_action(request, f"Verified transaction #{txn.id} for {txn.user.username}")
     messages.success(request, f"Transaction #{txn.id} verified and subscription activated.")
     return admin_redirect('billing')
@@ -1152,8 +1033,7 @@ def send_invoice(request, invoice_id):
 @require_POST
 def save_general_settings(request):
     for key in ['app_name', 'support_email', 'support_phone']:
-        value = request.POST.get(key, '').strip()
-        SystemConfig.objects.update_or_create(key=key, defaults={'value': value})
+        SystemConfig.objects.update_or_create(key=key, defaults={'value': request.POST.get(key, '').strip()})
     log_admin_action(request, "Updated general settings")
     messages.success(request, "General settings saved.")
     return admin_redirect('configuration')
@@ -1175,13 +1055,10 @@ def save_payment_config(request):
 @require_POST
 def save_email_config(request):
     for key in ['smtp_host', 'smtp_port', 'smtp_tls', 'smtp_user']:
-        value = request.POST.get(key, '').strip()
-        SystemConfig.objects.update_or_create(key=key, defaults={'value': value})
- 
+        SystemConfig.objects.update_or_create(key=key, defaults={'value': request.POST.get(key, '').strip()})
     password = request.POST.get('smtp_password', '').strip()
     if password:
         SystemConfig.objects.update_or_create(key='smtp_password', defaults={'value': password})
- 
     log_admin_action(request, "Updated SMTP config")
     messages.success(request, "Email / SMTP settings saved.")
     return admin_redirect('configuration')
@@ -1190,22 +1067,10 @@ def save_email_config(request):
 @staff_required
 @require_POST
 def save_security_config(request):
-    SystemConfig.objects.update_or_create(
-        key='require_2fa',
-        defaults={'value': '1' if request.POST.get('require_2fa') else '0'}
-    )
-    SystemConfig.objects.update_or_create(
-        key='strong_password',
-        defaults={'value': '1' if request.POST.get('strong_password') else '0'}
-    )
-    SystemConfig.objects.update_or_create(
-        key='min_password_length',
-        defaults={'value': request.POST.get('min_password_length', '8')}
-    )
-    SystemConfig.objects.update_or_create(
-        key='max_login_attempts',
-        defaults={'value': request.POST.get('max_login_attempts', '5')}
-    )
+    for key, default in [('min_password_length','8'), ('max_login_attempts','5')]:
+        SystemConfig.objects.update_or_create(key=key, defaults={'value': request.POST.get(key, default)})
+    for key in ['require_2fa', 'strong_password']:
+        SystemConfig.objects.update_or_create(key=key, defaults={'value': '1' if request.POST.get(key) else '0'})
     log_admin_action(request, "Updated security config")
     messages.success(request, "Security settings saved.")
     return admin_redirect('configuration')
@@ -1226,11 +1091,8 @@ def save_api_keys(request):
 @staff_required
 @require_POST
 def create_backup(request):
+    SystemConfig.objects.update_or_create(key='last_backup', defaults={'value': timezone.now().strftime('%Y-%m-%d %H:%M:%S')})
     log_admin_action(request, "Created database backup")
-    SystemConfig.objects.update_or_create(
-        key='last_backup',
-        defaults={'value': timezone.now().strftime('%Y-%m-%d %H:%M:%S')}
-    )
     messages.success(request, "Database backup created successfully.")
     return admin_redirect('configuration')
  
@@ -1242,7 +1104,6 @@ def restore_backup(request):
     if not backup_file:
         messages.error(request, "No backup file provided.")
         return admin_redirect('configuration')
- 
     log_admin_action(request, f"Restored from backup: {backup_file.name}")
     messages.warning(request, f"Restore from '{backup_file.name}' initiated. (Implementation pending)")
     return admin_redirect('configuration')
