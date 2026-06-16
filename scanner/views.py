@@ -138,22 +138,28 @@ def dashboard(request):
     graph_edges_json = json.dumps(edges_list)
 
     topic_filter = request.GET.get('topic_filter', 'company')
-    if topic_filter == 'company':
-        notes = cards.values_list('company_name', flat=True)
-    elif topic_filter == 'location':
-        notes = cards.values_list('address', flat=True)
-    elif topic_filter == 'designation':
-        notes = cards.values_list('designation', flat=True)
-    elif topic_filter == 'domain':
-        notes = cards.values_list('domains__name', flat=True)
-    else:
-        notes = cards.values_list('manual_note', flat=True)
 
-    text = " ".join(filter(None, notes)).lower()
-    words = re.findall(r'\b[a-z]{4,}\b', text)
-    stop_words = {'that', 'this', 'with', 'from', 'have', 'were', 'they', 'will', 'your', 'about', 'and', 'the'}
-    filtered_words = [w for w in words if w not in stop_words]
-    bag_of_words = Counter(filtered_words).most_common(40)
+    if topic_filter == 'manual_note':
+        notes = cards.values_list('manual_note', flat=True)
+        text = " ".join(filter(None, notes)).lower()
+        words = re.findall(r'\b[a-z]{4,}\b', text)
+        stop_words = {'that', 'this', 'with', 'from', 'have', 'were', 'they', 'will', 'your', 'about', 'and', 'the'}
+        filtered_words = [w for w in words if w not in stop_words]
+        bag_of_words = Counter(filtered_words).most_common(40)
+    else:
+        if topic_filter == 'company':
+            raw_values = cards.values_list('company_name', flat=True)
+        elif topic_filter == 'location':
+            raw_values = cards.values_list('address', flat=True)
+        elif topic_filter == 'designation':
+            raw_values = cards.values_list('designation', flat=True)
+        elif topic_filter == 'domain':
+            raw_values = cards.values_list('domains__name', flat=True)
+        else:
+            raw_values = cards.values_list('company_name', flat=True)
+
+        normalized = [v.strip().lower() for v in raw_values if v and v.strip()]
+        bag_of_words = Counter(normalized).most_common(40)
 
     max_count = bag_of_words[0][1] if bag_of_words else 1
     bag_of_words_scaled = [(word, int((count / max_count) * 28) + 12) for word, count in bag_of_words]
