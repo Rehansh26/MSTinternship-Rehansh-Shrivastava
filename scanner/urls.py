@@ -6,8 +6,8 @@ urlpatterns = [
     path('login/', auth_views.LoginView.as_view(template_name='scanner/login.html'), name='login'),
     path('logout/', views.logout_user, name='logout'),
     path('register/', views.register_user, name='register'),
-    path('', views.dashboard, name='dashboard'),
-    path('dashboard/', views.dashboard, name='dashboard_fallback'),
+    path('', views.dashboard, name='root'),
+    path('dashboard/', views.dashboard, name='dashboard'),
     path('edit/<int:card_id>/', views.edit_card, name='edit_card'),
     path('chat/', views.chat_view, name='chat'),
     path('delete/<int:card_id>/', views.delete_card, name='delete_card'),
@@ -53,4 +53,5 @@ urlpatterns = [
     path('custom-admin/create-backup/', views.create_backup, name='create_backup'),
     path('custom-admin/restore-backup/', views.restore_backup, name='restore_backup'),
     path('custom-admin/demote-team-member/<int:user_id>/', views.demote_team_member, name='demote_team_member'),
+    path('subscriptions/', views.subscriptions_view, name='subscriptions'),
 ]

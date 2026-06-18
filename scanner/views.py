@@ -1045,6 +1045,19 @@ def manage_configs(request):
     return render(request, 'scanner/admin_configs.html', context)
  
  
+@login_required
+def subscriptions_view(request):
+    profile, _ = BillingProfile.objects.get_or_create(user=request.user)
+    plans = SubscriptionPlan.objects.filter(is_active=True).order_by('price')
+    transactions = TransactionHistory.objects.filter(user=request.user).order_by('-date')[:5]
+
+    context = {
+        'profile': profile,
+        'plans': plans,
+        'transactions': transactions,
+    }
+    return render(request, 'scanner/subscriptions.html', context)
+
 @staff_member_required
 def view_logs(request):
     try:
